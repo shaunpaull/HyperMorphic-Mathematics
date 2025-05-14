@@ -1,0 +1,4254 @@
+"""
+# HyperMorphic Calculus Framework
+
+A comprehensive implementation of the Zero-Free HyperMorphic Calculus, featuring holomorphic operations, polymorphic operators, dynamic base and modulus functions.
+
+## Structure
+- `core/`: Core HyperMorphic Mathematics
+- `spaces/`: HyperMorphic Space implementations
+- `calculus/`: Differentiation and integration operations
+- `applications/`: Implementations for various domains
+- `visualization/`: Tools for visualizing HyperMorphic entities
+- `examples/`: Example use cases and demonstrations
+
+## Features
+- Holomorphic structure supporting infinite dimensions
+- Polymorphic operators preserving algebraic structure
+- Dynamic base (Φ) and modulus (Ψ) functions
+- Zero-free approach with HyperMorphic nearness (ε_ᵩ)
+- Applications across quantum mechanics, fluid dynamics, finance, ML, and more
+"""
+
+################################################################################
+# Core HyperMorphic Mathematics
+################################################################################
+
+# core/hypermorphic_number.py
+"""
+Implementation of the HyperMorphic Number system with dynamic base Φ and 
+modulus Ψ functions, following the zero-free approach.
+"""
+
+import numpy as np
+import mpmath as mp
+from mpmath import mpc, mpf
+from typing import Callable, Union, Optional, List, Tuple, Any
+import matplotlib.pyplot as plt
+from functools import wraps
+
+# Set precision for high-accuracy calculations
+mp.dps = 100
+
+class HyperMorphicNumber:
+    """
+    Implementation of a HyperMorphic Number with dynamic base Φ and modulus Ψ,
+    following a zero-free approach with HyperMorphic nearness ε_ᵩ.
+    
+    As per Definition 2.1 and 2.2 in the framework, this class implements:
+    - Dynamic base function Φ
+    - Dynamic modulus function Ψ
+    - A holomorphic structure
+    - A polymorphic approach to operations
+    - Zero-free arithmetic using HyperMorphic nearness ε_ᵩ
+    """
+    
+    def __init__(self, 
+                 value: Union[complex, mpc, float, int, "HyperMorphicNumber"], 
+                 phi: Callable[[int], int],
+                 psi: Callable[[int], int],
+                 epsilon: Optional[Union[float, mpf]] = None,
+                 dim: int = 1):
+        """
+        Initialize a HyperMorphic Number.
+        
+        Args:
+            value: The value of the number (complex or real)
+            phi: Dynamic base function Φ: ℕ → ℕ
+            psi: Dynamic modulus function Ψ: ℕ → ℕ
+            epsilon: HyperMorphic nearness (ε_ᵩ) value, defaults to very small number if None
+            dim: Dimension parameter for dynamic operations
+        """
+        # Set default epsilon if not provided
+        if epsilon is None:
+            self.epsilon = mpf('1e-50')
+        else:
+            self.epsilon = mpf(epsilon)
+        
+        # Initialize value using zero-free approach
+        if isinstance(value, HyperMorphicNumber):
+            self.value = value.value
+            self._ensure_not_zero()
+        else:
+            # Convert input to mpmath complex
+            if isinstance(value, (complex, int, float)):
+                self.value = mpc(value)
+            else:
+                self.value = value
+            self._ensure_not_zero()
+                
+        # Store functions and parameters
+        self.phi = phi
+        self.psi = psi
+        self.dim = dim
+    
+    def _ensure_not_zero(self):
+        """
+        Ensure the value is never exactly zero, replacing zeros with ε_ᵩ
+        as per the zero-free approach in Definition 2.1.
+        """
+        if abs(self.value) < self.epsilon:
+            # If magnitude is too small, replace with the nearness element
+            if isinstance(self.value, mpc):
+                # Preserve direction for complex values
+                if self.value == 0:
+                    self.value = mpc(self.epsilon, 0)
+                else:
+                    direction = self.value / abs(self.value)
+                    self.value = self.epsilon * direction
+            else:
+                # For real values
+                self.value = self.epsilon if self.value >= 0 else -self.epsilon
+    
+    def complex_mod(self, value: mpc, modulus: Union[int, mpf]) -> mpc:
+        """
+        Apply modular operation to complex number while preserving direction.
+        This implements the dynamic operations constraint from Definition 2.1.
+        
+        Args:
+            value: Complex value to apply modulo to
+            modulus: Modulus value (must not be 1 as per axiom 8)
+            
+        Returns:
+            Complex number after modulo operation
+        
+        Raises:
+            ValueError: If modulus is 1, as per axiom 8's constraint
+        """
+        # Check if modulus is 1, which makes operations undefined (axiom 8)
+        if abs(modulus - 1) < self.epsilon:
+            raise ValueError("Dynamic modulus cannot be 1 as operations become undefined")
+        
+        # Ensure modulus is not too small (zero-free approach)
+        if abs(modulus) < self.epsilon:
+            modulus = self.epsilon
+        
+        # Calculate magnitude
+        magnitude = abs(value)
+        
+        # Handle case when magnitude is extremely small
+        if magnitude < self.epsilon:
+            return mpc(self.epsilon, 0)
+        
+        # Apply modulo to magnitude
+        mod_magnitude = magnitude % modulus
+        
+        # Ensure result is not too small (zero-free approach)
+        if mod_magnitude < self.epsilon:
+            mod_magnitude = self.epsilon
+            
+        # Preserve direction by normalizing and scaling
+        direction = value / magnitude
+        return mod_magnitude * direction
+    
+    def __add__(self, other: Union["HyperMorphicNumber", complex, float, int]) -> "HyperMorphicNumber":
+        """
+        HyperMorphic addition with dynamic base Φ (axiom 7).
+        
+        Args:
+            other: Value to add
+            
+        Returns:
+            New HyperMorphicNumber representing the sum
+        """
+        if isinstance(other, HyperMorphicNumber):
+            # Perform addition between two HyperMorphicNumbers
+            result_value = self.value + other.value
+            # Apply dynamic base modulation
+            modulated_value = self.complex_mod(result_value, self.phi(self.dim))
+            return HyperMorphicNumber(modulated_value, self.phi, self.psi, self.epsilon, self.dim)
+        else:
+            # Convert other to compatible format and add
+            other_value = mpc(other)
+            result_value = self.value + other_value
+            # Apply dynamic base modulation
+            modulated_value = self.complex_mod(result_value, self.phi(self.dim))
+            return HyperMorphicNumber(modulated_value, self.phi, self.psi, self.epsilon, self.dim)
+    
+    def __sub__(self, other: Union["HyperMorphicNumber", complex, float, int]) -> "HyperMorphicNumber":
+        """
+        HyperMorphic subtraction with dynamic base Φ.
+        
+        Args:
+            other: Value to subtract
+            
+        Returns:
+            New HyperMorphicNumber representing the difference
+        """
+        if isinstance(other, HyperMorphicNumber):
+            # For a ⊖ᵩ b = a ⊕ᵩ (-b) as defined in Definition 2.3
+            result_value = self.value - other.value
+            # Apply dynamic base modulation
+            modulated_value = self.complex_mod(result_value, self.phi(self.dim))
+            return HyperMorphicNumber(modulated_value, self.phi, self.psi, self.epsilon, self.dim)
+        else:
+            # Convert other to compatible format and subtract
+            other_value = mpc(other)
+            result_value = self.value - other_value
+            # Apply dynamic base modulation
+            modulated_value = self.complex_mod(result_value, self.phi(self.dim))
+            return HyperMorphicNumber(modulated_value, self.phi, self.psi, self.epsilon, self.dim)
+    
+    def __mul__(self, other: Union["HyperMorphicNumber", complex, float, int]) -> "HyperMorphicNumber":
+        """
+        HyperMorphic multiplication with dynamic modulus Ψ (axiom 8).
+        
+        Args:
+            other: Value to multiply by
+            
+        Returns:
+            New HyperMorphicNumber representing the product
+        """
+        if isinstance(other, HyperMorphicNumber):
+            # Perform multiplication between two HyperMorphicNumbers
+            result_value = self.value * other.value
+            # Apply dynamic modulus modulation
+            modulated_value = self.complex_mod(result_value, self.psi(self.dim))
+            return HyperMorphicNumber(modulated_value, self.phi, self.psi, self.epsilon, self.dim)
+        else:
+            # Convert other to compatible format and multiply
+            other_value = mpc(other)
+            result_value = self.value * other_value
+            # Apply dynamic modulus modulation
+            modulated_value = self.complex_mod(result_value, self.psi(self.dim))
+            return HyperMorphicNumber(modulated_value, self.phi, self.psi, self.epsilon, self.dim)
+    
+    def __truediv__(self, other: Union["HyperMorphicNumber", complex, float, int]) -> "HyperMorphicNumber":
+        """
+        HyperMorphic division with dynamic modulus Ψ.
+        
+        Args:
+            other: Value to divide by (must not be ε_ᵩ)
+            
+        Returns:
+            New HyperMorphicNumber representing the quotient
+            
+        Raises:
+            ValueError: If other is too close to ε_ᵩ
+        """
+        if isinstance(other, HyperMorphicNumber):
+            # Check if divisor is too close to ε_ᵩ
+            if abs(other.value) <= other.epsilon:
+                raise ValueError(f"Division by the HyperMorphic nearness ε_ᵩ = {self.epsilon} is not allowed")
+            
+            # Perform division
+            result_value = self.value / other.value
+            # Apply dynamic modulus modulation
+            modulated_value = self.complex_mod(result_value, self.psi(self.dim))
+            return HyperMorphicNumber(modulated_value, self.phi, self.psi, self.epsilon, self.dim)
+        else:
+            # Convert other to compatible format
+            other_value = mpc(other)
+            
+            # Check if divisor is too close to ε_ᵩ
+            if abs(other_value) <= self.epsilon:
+                raise ValueError(f"Division by the HyperMorphic nearness ε_ᵩ = {self.epsilon} is not allowed")
+            
+            # Perform division
+            result_value = self.value / other_value
+            # Apply dynamic modulus modulation
+            modulated_value = self.complex_mod(result_value, self.psi(self.dim))
+            return HyperMorphicNumber(modulated_value, self.phi, self.psi, self.epsilon, self.dim)
+    
+    def __neg__(self) -> "HyperMorphicNumber":
+        """
+        Negate the HyperMorphicNumber.
+        
+        Returns:
+            New HyperMorphicNumber with negated value
+        """
+        result_value = -self.value
+        # Apply dynamic base modulation
+        modulated_value = self.complex_mod(result_value, self.phi(self.dim))
+        return HyperMorphicNumber(modulated_value, self.phi, self.psi, self.epsilon, self.dim)
+    
+    def __pow__(self, power: Union["HyperMorphicNumber", complex, float, int]) -> "HyperMorphicNumber":
+        """
+        HyperMorphic exponentiation with dynamic modulus Ψ.
+        
+        Args:
+            power: Exponent value
+            
+        Returns:
+            New HyperMorphicNumber representing the power
+        """
+        if isinstance(power, HyperMorphicNumber):
+            # Calculate power using mpmath for high precision
+            result_value = mp.power(self.value, power.value)
+            # Apply dynamic modulus modulation
+            modulated_value = self.complex_mod(result_value, self.psi(self.dim))
+            return HyperMorphicNumber(modulated_value, self.phi, self.psi, self.epsilon, self.dim)
+        else:
+            # Convert power to compatible format
+            power_value = mpc(power)
+            # Calculate power
+            result_value = mp.power(self.value, power_value)
+            # Apply dynamic modulus modulation
+            modulated_value = self.complex_mod(result_value, self.psi(self.dim))
+            return HyperMorphicNumber(modulated_value, self.phi, self.psi, self.epsilon, self.dim)
+    
+    def __abs__(self) -> "HyperMorphicNumber":
+        """
+        Absolute value of HyperMorphicNumber.
+        
+        Returns:
+            New HyperMorphicNumber with absolute value
+        """
+        result_value = abs(self.value)
+        # Apply dynamic base modulation
+        modulated_value = self.complex_mod(result_value, self.phi(self.dim))
+        return HyperMorphicNumber(modulated_value, self.phi, self.psi, self.epsilon, self.dim)
+    
+    def __eq__(self, other: Union["HyperMorphicNumber", complex, float, int]) -> bool:
+        """
+        Check equality between HyperMorphicNumbers.
+        
+        Args:
+            other: Value to compare with
+            
+        Returns:
+            True if values are equal within ε_ᵩ tolerance, False otherwise
+        """
+        if isinstance(other, HyperMorphicNumber):
+            return abs(self.value - other.value) < self.epsilon
+        else:
+            other_value = mpc(other)
+            return abs(self.value - other_value) < self.epsilon
+    
+    def __str__(self) -> str:
+        """
+        String representation of the HyperMorphicNumber.
+        
+        Returns:
+            String representation
+        """
+        return f"HM({self.value}, Φ={self.phi(self.dim)}, Ψ={self.psi(self.dim)})"
+    
+    def __repr__(self) -> str:
+        """
+        Detailed representation of the HyperMorphicNumber.
+        
+        Returns:
+            Detailed string representation
+        """
+        return f"HyperMorphicNumber(value={self.value}, phi={self.phi.__name__}, psi={self.psi.__name__}, ε_ᵩ={self.epsilon}, dim={self.dim})"
+    
+    # Implement holomorphic functions (as mentioned in axiom 5)
+    
+    def exp(self) -> "HyperMorphicNumber":
+        """
+        Compute the exponential function of the HyperMorphicNumber.
+        This is a holomorphic function as per axiom 5.
+        
+        Returns:
+            e^(self) as a HyperMorphicNumber
+        """
+        # Calculate exponential
+        result_value = mp.exp(self.value)
+        # Apply dynamic modulus modulation
+        modulated_value = self.complex_mod(result_value, self.psi(self.dim))
+        return HyperMorphicNumber(modulated_value, self.phi, self.psi, self.epsilon, self.dim)
+    
+    def log(self) -> "HyperMorphicNumber":
+        """
+        Compute the natural logarithm of the HyperMorphicNumber.
+        This is a holomorphic function as per axiom 5.
+        
+        Returns:
+            ln(self) as a HyperMorphicNumber
+            
+        Raises:
+            ValueError: If value is the HyperMorphic nearness ε_ᵩ
+        """
+        # Check if value is too close to ε_ᵩ
+        if abs(self.value) <= self.epsilon:
+            raise ValueError(f"Logarithm of the HyperMorphic nearness ε_ᵩ = {self.epsilon} is not defined")
+        
+        # Calculate logarithm
+        result_value = mp.log(self.value)
+        # Apply dynamic base modulation
+        modulated_value = self.complex_mod(result_value, self.phi(self.dim))
+        return HyperMorphicNumber(modulated_value, self.phi, self.psi, self.epsilon, self.dim)
+    
+    def sin(self) -> "HyperMorphicNumber":
+        """
+        Compute the sine function of the HyperMorphicNumber.
+        This is a holomorphic function as per axiom 5.
+        
+        Returns:
+            sin(self) as a HyperMorphicNumber
+        """
+        # Calculate sine
+        result_value = mp.sin(self.value)
+        # Apply dynamic modulus modulation
+        modulated_value = self.complex_mod(result_value, self.psi(self.dim))
+        return HyperMorphicNumber(modulated_value, self.phi, self.psi, self.epsilon, self.dim)
+    
+    def cos(self) -> "HyperMorphicNumber":
+        """
+        Compute the cosine function of the HyperMorphicNumber.
+        This is a holomorphic function as per axiom 5.
+        
+        Returns:
+            cos(self) as a HyperMorphicNumber
+        """
+        # Calculate cosine
+        result_value = mp.cos(self.value)
+        # Apply dynamic modulus modulation
+        modulated_value = self.complex_mod(result_value, self.psi(self.dim))
+        return HyperMorphicNumber(modulated_value, self.phi, self.psi, self.epsilon, self.dim)
+    
+    def tan(self) -> "HyperMorphicNumber":
+        """
+        Compute the tangent function of the HyperMorphicNumber.
+        This is a holomorphic function as per axiom 5.
+        
+        Returns:
+            tan(self) as a HyperMorphicNumber
+        """
+        # Calculate tangent
+        result_value = mp.tan(self.value)
+        # Apply dynamic modulus modulation
+        modulated_value = self.complex_mod(result_value, self.psi(self.dim))
+        return HyperMorphicNumber(modulated_value, self.phi, self.psi, self.epsilon, self.dim)
+    
+    def sinh(self) -> "HyperMorphicNumber":
+        """
+        Compute the hyperbolic sine of the HyperMorphicNumber.
+        This is a holomorphic function as per axiom 5.
+        
+        Returns:
+            sinh(self) as a HyperMorphicNumber
+        """
+        # Calculate hyperbolic sine
+        result_value = mp.sinh(self.value)
+        # Apply dynamic modulus modulation
+        modulated_value = self.complex_mod(result_value, self.psi(self.dim))
+        return HyperMorphicNumber(modulated_value, self.phi, self.psi, self.epsilon, self.dim)
+    
+    def cosh(self) -> "HyperMorphicNumber":
+        """
+        Compute the hyperbolic cosine of the HyperMorphicNumber.
+        This is a holomorphic function as per axiom 5.
+        
+        Returns:
+            cosh(self) as a HyperMorphicNumber
+        """
+        # Calculate hyperbolic cosine
+        result_value = mp.cosh(self.value)
+        # Apply dynamic modulus modulation
+        modulated_value = self.complex_mod(result_value, self.psi(self.dim))
+        return HyperMorphicNumber(modulated_value, self.phi, self.psi, self.epsilon, self.dim)
+    
+    def tanh(self) -> "HyperMorphicNumber":
+        """
+        Compute the hyperbolic tangent of the HyperMorphicNumber.
+        This is a holomorphic function as per axiom 5.
+        
+        Returns:
+            tanh(self) as a HyperMorphicNumber
+        """
+        # Calculate hyperbolic tangent
+        result_value = mp.tanh(self.value)
+        # Apply dynamic modulus modulation
+        modulated_value = self.complex_mod(result_value, self.psi(self.dim))
+        return HyperMorphicNumber(modulated_value, self.phi, self.psi, self.epsilon, self.dim)
+
+# core/dynamic_functions.py
+"""
+Standard implementations of dynamic base (Φ) and modulus (Ψ) functions 
+for HyperMorphic Calculus.
+"""
+
+def constant_phi(n: int, value: int = 10) -> int:
+    """
+    Constant dynamic base function Φ(n) = value.
+    
+    Args:
+        n: Input dimension
+        value: Constant value (default: 10)
+        
+    Returns:
+        Constant value
+    """
+    return value
+
+def constant_psi(n: int, value: int = 10) -> int:
+    """
+    Constant dynamic modulus function Ψ(n) = value.
+    
+    Args:
+        n: Input dimension
+        value: Constant value (default: 10)
+        
+    Returns:
+        Constant value
+    """
+    # Ensure value is not 1 (as per axiom 8)
+    if value == 1:
+        return 2
+    return value
+
+def linear_phi(n: int) -> int:
+    """
+    Linear dynamic base function Φ(n) = n.
+    
+    Args:
+        n: Input dimension
+        
+    Returns:
+        n
+    """
+    return max(2, n)  # Ensure value is at least 2
+
+def quadratic_phi(n: int) -> int:
+    """
+    Quadratic dynamic base function Φ(n) = n².
+    
+    Args:
+        n: Input dimension
+        
+    Returns:
+        n²
+    """
+    return n**2
+
+def exponential_phi(n: int, base: float = 2) -> int:
+    """
+    Exponential dynamic base function Φ(n) = base^n.
+    
+    Args:
+        n: Input dimension
+        base: Exponential base (default: 2)
+        
+    Returns:
+        base^n
+    """
+    return int(base**n)
+
+def sinusoidal_phi(n: int, amplitude: int = 5, offset: int = 10) -> int:
+    """
+    Sinusoidal dynamic base function Φ(n) = amplitude * sin(n) + offset.
+    
+    Args:
+        n: Input dimension
+        amplitude: Amplitude of oscillation (default: 5)
+        offset: Vertical offset (default: 10)
+        
+    Returns:
+        amplitude * sin(n) + offset
+    """
+    # Ensure result is at least 2
+    return max(2, int(amplitude * np.sin(n) + offset))
+
+def fibonacci_phi(n: int) -> int:
+    """
+    Fibonacci dynamic base function Φ(n) = F_n.
+    
+    Args:
+        n: Input dimension
+        
+    Returns:
+        nth Fibonacci number
+    """
+    # Compute nth Fibonacci number
+    a, b = 0, 1
+    for _ in range(n):
+        a, b = b, a + b
+    return max(2, a)  # Ensure value is at least 2
+
+def prime_phi(n: int) -> int:
+    """
+    Prime dynamic base function Φ(n) = nth prime number.
+    
+    Args:
+        n: Input dimension
+        
+    Returns:
+        nth prime number
+    """
+    def is_prime(num: int) -> bool:
+        """Check if a number is prime."""
+        if num <= 1:
+            return False
+        if num <= 3:
+            return True
+        if num % 2 == 0 or num % 3 == 0:
+            return False
+        i = 5
+        while i * i <= num:
+            if num % i == 0 or num % (i + 2) == 0:
+                return False
+            i += 6
+        return True
+    
+    # Generate nth prime
+    count = 0
+    num = 2
+    while count < n:
+        if is_prime(num):
+            count += 1
+        if count == n:
+            return num
+        num += 1
+    return 2  # Fallback (shouldn't happen)
+
+# Similarly define psi functions
+linear_psi = linear_phi
+quadratic_psi = quadratic_phi
+exponential_psi = exponential_phi
+sinusoidal_psi = sinusoidal_phi
+fibonacci_psi = fibonacci_phi
+prime_psi = prime_phi
+
+################################################################################
+# HyperMorphic Space Implementation
+################################################################################
+
+# spaces/hypermorphic_space.py
+"""
+Implementation of the HyperMorphic Space (ℍℳ) as defined in the framework,
+satisfying axioms 1-8.
+"""
+
+class HyperMorphicSpace:
+    """
+    Implementation of a HyperMorphic Space ℍℳ as defined in Definition 2.1.
+    
+    This class approximates the infinite-dimensional space through a finite but
+    expandable representation that can simulate the key properties of ℍℳ.
+    """
+    
+    def __init__(self, 
+                 initial_dim: int = 10,
+                 phi: Callable[[int], int] = linear_phi,
+                 psi: Callable[[int], int] = constant_psi,
+                 epsilon: float = 1e-50):
+        """
+        Initialize a HyperMorphic Space.
+        
+        Args:
+            initial_dim: Initial finite dimension for representation
+            phi: Dynamic base function Φ
+            psi: Dynamic modulus function Ψ
+            epsilon: HyperMorphic nearness value
+        """
+        self.dim = initial_dim
+        self.phi = phi
+        self.psi = psi
+        self.epsilon = epsilon
+        
+        # Initialize basis vectors (expandable)
+        self.basis = [self._create_basis_vector(i) for i in range(initial_dim)]
+    
+    def _create_basis_vector(self, idx: int) -> List[HyperMorphicNumber]:
+        """
+        Create a basis vector for the space.
+        
+        Args:
+            idx: Index of the basis vector
+            
+        Returns:
+            Basis vector as a list of HyperMorphicNumbers
+        """
+        # Create a vector with a HyperMorphicNumber 1 at position idx and ε_ᵩ elsewhere
+        vector = []
+        for i in range(self.dim):
+            if i == idx:
+                vector.append(HyperMorphicNumber(1, self.phi, self.psi, self.epsilon, self.dim))
+            else:
+                vector.append(HyperMorphicNumber(self.epsilon, self.phi, self.psi, self.epsilon, self.dim))
+        return vector
+    
+    def expand_dimension(self, new_dim: int) -> None:
+        """
+        Expand the space to a higher dimension.
+        
+        Args:
+            new_dim: New dimension (must be larger than current)
+            
+        Raises:
+            ValueError: If new dimension is not larger than current
+        """
+        if new_dim <= self.dim:
+            raise ValueError(f"New dimension {new_dim} must be larger than current dimension {self.dim}")
+        
+        # Expand each existing basis vector
+        for i in range(len(self.basis)):
+            self.basis[i].extend([HyperMorphicNumber(self.epsilon, self.phi, self.psi, self.epsilon, new_dim) 
+                                 for _ in range(new_dim - self.dim)])
+        
+        # Add new basis vectors
+        for i in range(self.dim, new_dim):
+            self.basis.append(self._create_basis_vector(i))
+        
+        # Update dimension
+        self.dim = new_dim
+    
+    def inner_product(self, v1: List[HyperMorphicNumber], 
+                     v2: List[HyperMorphicNumber]) -> HyperMorphicNumber:
+        """
+        Compute the HyperMorphic inner product ⟨v1, v2⟩ᵩ.
+        
+        Args:
+            v1: First vector
+            v2: Second vector
+            
+        Returns:
+            HyperMorphicNumber representing the inner product
+            
+        Raises:
+            ValueError: If vectors have different dimensions
+        """
+        if len(v1) != len(v2):
+            raise ValueError(f"Vectors must have same dimension: {len(v1)} vs {len(v2)}")
+        
+        # Compute inner product
+        result = HyperMorphicNumber(self.epsilon, self.phi, self.psi, self.epsilon, self.dim)
+        for i in range(len(v1)):
+            # In HyperMorphic inner product, we use conjugate of the second vector
+            a_i = v1[i]
+            b_i_conj = HyperMorphicNumber(mp.conj(v2[i].value), self.phi, self.psi, self.epsilon, self.dim)
+            product = a_i * b_i_conj
+            result = result + product
+        
+        return result
+    
+    def norm(self, v: List[HyperMorphicNumber]) -> HyperMorphicNumber:
+        """
+        Compute the HyperMorphic norm ‖v‖ᵩ.
+        
+        Args:
+            v: Vector
+            
+        Returns:
+            HyperMorphicNumber representing the norm
+        """
+        # Compute inner product ⟨v, v⟩ᵩ
+        inner_prod = self.inner_product(v, v)
+        
+        # Take square root
+        if inner_prod.value.imag < self.epsilon:
+            # If imaginary part is negligible, treat as real
+            inner_prod.value = mpc(inner_prod.value.real, 0)
+        
+        # Square root using mpmath
+        sqrt_value = mp.sqrt(inner_prod.value)
+        
+        # Return as HyperMorphicNumber
+        return HyperMorphicNumber(sqrt_value, self.phi, self.psi, self.epsilon, self.dim)
+    
+    def polymorphic_operator(self, v: List[HyperMorphicNumber]) -> List[HyperMorphicNumber]:
+        """
+        Apply the polymorphic operator P to a vector.
+        This implements axiom 6 from Definition 2.1.
+        
+        Args:
+            v: Input vector
+            
+        Returns:
+            Transformed vector
+        """
+        # Initialize result vector
+        result = []
+        
+        # Apply transformation
+        for i, component in enumerate(v):
+            # Example polymorphic transformation (can be customized)
+            if i % 2 == 0:
+                # For even indices, apply exp
+                result.append(component.exp())
+            else:
+                # For odd indices, apply sin
+                result.append(component.sin())
+        
+        return result
+    
+    def add_vectors(self, v1: List[HyperMorphicNumber], 
+                   v2: List[HyperMorphicNumber]) -> List[HyperMorphicNumber]:
+        """
+        Add two vectors with dynamic base Φ modulation.
+        
+        Args:
+            v1: First vector
+            v2: Second vector
+            
+        Returns:
+            Sum vector
+            
+        Raises:
+            ValueError: If vectors have different dimensions
+        """
+        if len(v1) != len(v2):
+            raise ValueError(f"Vectors must have same dimension: {len(v1)} vs {len(v2)}")
+        
+        # Add vectors component-wise
+        result = []
+        for i in range(len(v1)):
+            result.append(v1[i] + v2[i])
+        
+        return result
+    
+    def scale_vector(self, scalar: HyperMorphicNumber, 
+                    v: List[HyperMorphicNumber]) -> List[HyperMorphicNumber]:
+        """
+        Scale a vector by a HyperMorphicNumber with dynamic modulus Ψ modulation.
+        
+        Args:
+            scalar: Scaling factor
+            v: Vector to scale
+            
+        Returns:
+            Scaled vector
+        """
+        # Scale vector component-wise
+        result = []
+        for component in v:
+            result.append(scalar * component)
+        
+        return result
+    
+    def project(self, v: List[HyperMorphicNumber], 
+               subspace_basis: List[List[HyperMorphicNumber]]) -> List[HyperMorphicNumber]:
+        """
+        Project a vector onto a subspace.
+        
+        Args:
+            v: Vector to project
+            subspace_basis: Basis vectors of the subspace
+            
+        Returns:
+            Projected vector
+        """
+        # Initialize projection
+        projection = [HyperMorphicNumber(self.epsilon, self.phi, self.psi, self.epsilon, self.dim) 
+                     for _ in range(len(v))]
+        
+        for basis_vector in subspace_basis:
+            # Compute coefficient
+            coef = self.inner_product(v, basis_vector)
+            
+            # Compute basis_vector component
+            scaled_basis = self.scale_vector(coef, basis_vector)
+            
+            # Add to projection
+            projection = self.add_vectors(projection, scaled_basis)
+        
+        return projection
+    
+    def is_dense(self, subspace_basis: List[List[HyperMorphicNumber]], 
+                tolerance: float = 1e-10) -> bool:
+        """
+        Check if a subspace is dense in the HyperMorphic space.
+        This relates to Theorem 3.1.
+        
+        Args:
+            subspace_basis: Basis vectors of the subspace
+            tolerance: Tolerance for checking density
+            
+        Returns:
+            True if subspace is dense, False otherwise
+        """
+        # Check if we can approximate standard basis vectors
+        for i in range(self.dim):
+            std_basis = self._create_basis_vector(i)
+            
+            # Project onto subspace
+            projection = self.project(std_basis, subspace_basis)
+            
+            # Check if projection is close to original
+            diff = self.add_vectors(std_basis, self.scale_vector(
+                HyperMorphicNumber(-1, self.phi, self.psi, self.epsilon, self.dim), 
+                projection))
+            
+            # Compute norm of difference
+            diff_norm = self.norm(diff)
+            
+            if diff_norm.value.real > tolerance:
+                return False
+        
+        return True
+
+# spaces/finite_subspace.py
+"""
+Implementation of a finite-dimensional subspace of the HyperMorphic Space.
+"""
+
+class FiniteSubspace:
+    """
+    Representation of a finite-dimensional subspace of the HyperMorphic Space.
+    This relates to Theorem 3.1 which states that the union of all finite-dimensional
+    subspaces is dense in ℍℳ.
+    """
+    
+    def __init__(self, 
+                 parent_space: HyperMorphicSpace,
+                 basis_vectors: List[List[HyperMorphicNumber]]):
+        """
+        Initialize a finite-dimensional subspace.
+        
+        Args:
+            parent_space: Parent HyperMorphic Space
+            basis_vectors: Basis vectors of the subspace
+        """
+        self.parent = parent_space
+        self.basis = basis_vectors
+        self.dim = len(basis_vectors)
+    
+    def contains(self, v: List[HyperMorphicNumber], 
+                tolerance: float = 1e-10) -> bool:
+        """
+        Check if a vector lies in the subspace.
+        
+        Args:
+            v: Vector to check
+            tolerance: Tolerance for checking containment
+            
+        Returns:
+            True if vector is in subspace, False otherwise
+        """
+        # Project vector onto subspace
+        projection = self.parent.project(v, self.basis)
+        
+        # Check if projection equals original vector
+        diff = self.parent.add_vectors(v, self.parent.scale_vector(
+            HyperMorphicNumber(-1, self.parent.phi, self.parent.psi, 
+                              self.parent.epsilon, self.parent.dim), 
+            projection))
+        
+        # Compute norm of difference
+        diff_norm = self.parent.norm(diff)
+        
+        return diff_norm.value.real <= tolerance
+    
+    def random_vector(self) -> List[HyperMorphicNumber]:
+        """
+        Generate a random vector in the subspace.
+        
+        Returns:
+            Random vector in the subspace
+        """
+        # Initialize vector with zeros
+        result = [HyperMorphicNumber(self.parent.epsilon, self.parent.phi, 
+                                    self.parent.psi, self.parent.epsilon, 
+                                    self.parent.dim) 
+                 for _ in range(len(self.basis[0]))]
+        
+        # Add random linear combinations of basis vectors
+        for basis_vector in self.basis:
+            # Generate random coefficient
+            coef = HyperMorphicNumber(complex(np.random.normal(), np.random.normal()),
+                                     self.parent.phi, self.parent.psi, 
+                                     self.parent.epsilon, self.parent.dim)
+            
+            # Scale basis vector
+            scaled_basis = self.parent.scale_vector(coef, basis_vector)
+            
+            # Add to result
+            result = self.parent.add_vectors(result, scaled_basis)
+        
+        return result
+
+################################################################################
+# HyperMorphic Calculus: Differentiation
+################################################################################
+
+# calculus/differentiation.py
+"""
+Implementation of HyperMorphic differentiation as defined in Section 4.
+"""
+
+class HyperMorphicDerivative:
+    """
+    Implementation of HyperMorphic derivatives for functions on HyperMorphic spaces.
+    """
+    
+    def __init__(self, 
+                 space: HyperMorphicSpace,
+                 epsilon: float = 1e-10):
+        """
+        Initialize the HyperMorphic derivative operator.
+        
+        Args:
+            space: HyperMorphic space
+            epsilon: Small value for numerical differentiation
+        """
+        self.space = space
+        self.numerical_epsilon = epsilon
+    
+    def compute(self, 
+               func: Callable[[List[HyperMorphicNumber]], List[HyperMorphicNumber]],
+               point: List[HyperMorphicNumber],
+               direction: List[HyperMorphicNumber] = None) -> List[HyperMorphicNumber]:
+        """
+        Compute the HyperMorphic derivative D_ℍℳf at a point in a direction.
+        This implements Definition 4.1.1.
+        
+        Args:
+            func: Function to differentiate
+            point: Point at which to evaluate derivative
+            direction: Direction in which to evaluate derivative (if None, returns Jacobian)
+            
+        Returns:
+            HyperMorphic derivative as a vector or matrix
+        """
+        if direction is None:
+            # Compute full Jacobian matrix
+            return self._compute_jacobian(func, point)
+        else:
+            # Compute directional derivative
+            return self._compute_directional(func, point, direction)
+    
+    def _compute_directional(self, 
+                            func: Callable[[List[HyperMorphicNumber]], List[HyperMorphicNumber]],
+                            point: List[HyperMorphicNumber],
+                            direction: List[HyperMorphicNumber]) -> List[HyperMorphicNumber]:
+        """
+        Compute the directional derivative.
+        
+        Args:
+            func: Function to differentiate
+            point: Point at which to evaluate derivative
+            direction: Direction in which to evaluate derivative
+            
+        Returns:
+            Directional derivative vector
+        """
+        # Normalize direction
+        direction_norm = self.space.norm(direction)
+        
+        # Check if direction has zero norm
+        if direction_norm.value.real < self.space.epsilon:
+            # Return zero vector
+            return [HyperMorphicNumber(self.space.epsilon, self.space.phi, 
+                                      self.space.psi, self.space.epsilon, 
+                                      self.space.dim) 
+                   for _ in range(len(func(point)))]
+        
+        # Normalize direction
+        normalized_direction = self.space.scale_vector(
+            HyperMorphicNumber(1, self.space.phi, self.space.psi, 
+                              self.space.epsilon, self.space.dim) / direction_norm,
+            direction)
+        
+        # Compute perturbed point
+        h = HyperMorphicNumber(self.numerical_epsilon, self.space.phi, 
+                              self.space.psi, self.space.epsilon, self.space.dim)
+        
+        scaled_direction = self.space.scale_vector(h, normalized_direction)
+        perturbed_point = self.space.add_vectors(point, scaled_direction)
+        
+        # Compute function values
+        f_point = func(point)
+        f_perturbed = func(perturbed_point)
+        
+        # Compute difference
+        diff = []
+        for i in range(len(f_perturbed)):
+            diff.append((f_perturbed[i] - f_point[i]) / h)
+        
+        return diff
+    
+    def _compute_jacobian(self, 
+                         func: Callable[[List[HyperMorphicNumber]], List[HyperMorphicNumber]],
+                         point: List[HyperMorphicNumber]]) -> List[List[HyperMorphicNumber]]:
+        """
+        Compute the Jacobian matrix.
+        
+        Args:
+            func: Function to differentiate
+            point: Point at which to evaluate Jacobian
+            
+        Returns:
+            Jacobian matrix
+        """
+        # Get output dimension
+        output_dim = len(func(point))
+        
+        # Initialize Jacobian matrix
+        jacobian = []
+        
+        # Compute derivatives with respect to each basis direction
+        for i in range(len(point)):
+            # Create unit vector in direction i
+            direction = [HyperMorphicNumber(self.space.epsilon, self.space.phi, 
+                                           self.space.psi, self.space.epsilon, 
+                                           self.space.dim) 
+                        for _ in range(len(point))]
+            direction[i] = HyperMorphicNumber(1, self.space.phi, self.space.psi, 
+                                             self.space.epsilon, self.space.dim)
+            
+            # Compute directional derivative
+            derivative = self._compute_directional(func, point, direction)
+            
+            # Add to Jacobian
+            jacobian.append(derivative)
+        
+        # Transpose Jacobian to get standard format
+        transposed = []
+        for j in range(output_dim):
+            row = []
+            for i in range(len(point)):
+                row.append(jacobian[i][j])
+            transposed.append(row)
+        
+        return transposed
+    
+    def higher_order(self, 
+                    func: Callable[[List[HyperMorphicNumber]], List[HyperMorphicNumber]],
+                    point: List[HyperMorphicNumber]],
+                    n: int) -> Any:
+        """
+        Compute the n-th order HyperMorphic derivative.
+        This implements Definition 4.3.1.
+        
+        Args:
+            func: Function to differentiate
+            point: Point at which to evaluate derivative
+            n: Order of derivative
+            
+        Returns:
+            n-th order derivative tensor
+            
+        Raises:
+            ValueError: If n is negative
+        """
+        if n < 0:
+            raise ValueError(f"Order of derivative must be non-negative: {n}")
+        
+        if n == 0:
+            # 0th derivative is just the function
+            return func(point)
+        
+        if n == 1:
+            # 1st derivative is the Jacobian
+            return self._compute_jacobian(func, point)
+        
+        # For higher-order derivatives, use recursion
+        # This is a simplified approach; a full implementation would use tensor calculus
+        def jacobian_func(p):
+            return self._compute_jacobian(func, p)
+        
+        return self.higher_order(jacobian_func, point, n-1)
+    
+    def taylor_expansion(self, 
+                        func: Callable[[List[HyperMorphicNumber]], List[HyperMorphicNumber]],
+                        point: List[HyperMorphicNumber]],
+                        h: List[HyperMorphicNumber]],
+                        order: int = 2) -> List[HyperMorphicNumber]:
+        """
+        Compute the Taylor expansion of a function.
+        This implements Theorem 4.3.2.
+        
+        Args:
+            func: Function to expand
+            point: Point around which to expand
+            h: Displacement vector
+            order: Order of expansion
+            
+        Returns:
+            Taylor expansion as a HyperMorphic vector
+        """
+        # Compute function value at point
+        f_point = func(point)
+        
+        # Initialize result
+        result = f_point
+        
+        # Add higher-order terms
+        for k in range(1, order+1):
+            # Compute k-th derivative
+            d_k = self.higher_order(func, point, k)
+            
+            # Compute k-th power of h (for a vector, this is a tensor product)
+            # This is a simplified approach
+            h_k = h  # This should be h^⊗k
+            
+            # Compute factorial
+            factorial_k = 1
+            for i in range(1, k+1):
+                factorial_k *= i
+            
+            # Compute scalar
+            scalar = HyperMorphicNumber(1/factorial_k, self.space.phi, 
+                                       self.space.psi, self.space.epsilon, 
+                                       self.space.dim)
+            
+            # Add term to result (this is a simplified approach)
+            term = self.space.scale_vector(scalar, h_k)
+            result = self.space.add_vectors(result, term)
+        
+        return result
+
+# Now let's implement the product rule and chain rule
+
+def product_rule(derivative: HyperMorphicDerivative,
+                f: Callable[[List[HyperMorphicNumber]], List[HyperMorphicNumber]],
+                g: Callable[[List[HyperMorphicNumber]], List[HyperMorphicNumber]],
+                point: List[HyperMorphicNumber]]) -> List[HyperMorphicNumber]:
+    """
+    Apply the HyperMorphic product rule to compute the derivative of f⊗ᵩg.
+    This implements Theorem 4.2.2.
+    
+    Args:
+        derivative: HyperMorphicDerivative instance
+        f: First function
+        g: Second function
+        point: Point at which to evaluate derivative
+        
+    Returns:
+        Derivative of f⊗ᵩg at point
+    """
+    # Compute f(point) and g(point)
+    f_point = f(point)
+    g_point = g(point)
+    
+    # Compute derivatives
+    df = derivative.compute(f, point)
+    dg = derivative.compute(g, point)
+    
+    # Apply product rule: D_ℍℳ(f ⊗ᵩ g)(x) = [D_ℍℳf(x) ⊗ᵩ g(x) ⊕ᵩ f(x) ⊗ᵩ D_ℍℳg(x)]_Ψ
+    space = derivative.space
+    
+    # Compute first term: D_ℍℳf(x) ⊗ᵩ g(x)
+    term1 = []
+    for i in range(len(df)):
+        row = []
+        for j in range(len(g_point)):
+            row.append(df[i][j] * g_point[j])
+        term1.append(row)
+    
+    # Compute second term: f(x) ⊗ᵩ D_ℍℳg(x)
+    term2 = []
+    for i in range(len(f_point)):
+        row = []
+        for j in range(len(dg)):
+            row.append(f_point[i] * dg[j][i])
+        term2.append(row)
+    
+    # Combine terms
+    result = []
+    for i in range(len(term1)):
+        row = []
+        for j in range(len(term1[i])):
+            row.append(term1[i][j] + term2[i][j])
+        result.append(row)
+    
+    return result
+
+def chain_rule(derivative: HyperMorphicDerivative,
+              f: Callable[[List[HyperMorphicNumber]], List[HyperMorphicNumber]],
+              g: Callable[[List[HyperMorphicNumber]], List[HyperMorphicNumber]],
+              point: List[HyperMorphicNumber]]) -> List[HyperMorphicNumber]:
+    """
+    Apply the HyperMorphic chain rule to compute the derivative of g∘f.
+    This implements Theorem 4.2.3.
+    
+    Args:
+        derivative: HyperMorphicDerivative instance
+        f: Inner function
+        g: Outer function
+        point: Point at which to evaluate derivative
+        
+    Returns:
+        Derivative of g∘f at point
+    """
+    # Compute f(point)
+    f_point = f(point)
+    
+    # Compute derivatives
+    df = derivative.compute(f, point)
+    dg = derivative.compute(g, f_point)
+    
+    # Apply chain rule: D_ℍℳ(g ∘ f)(x) = [D_ℍℳg(f(x)) ⊗ᵩ D_ℍℳf(x)]_Ψ
+    space = derivative.space
+    
+    # Perform matrix multiplication dg ⊗ᵩ df
+    result = []
+    for i in range(len(dg)):
+        row = []
+        for j in range(len(df[0])):
+            # Compute dot product
+            sum_term = HyperMorphicNumber(space.epsilon, space.phi, 
+                                         space.psi, space.epsilon, 
+                                         space.dim)
+            
+            for k in range(len(df)):
+                sum_term = sum_term + (dg[i][k] * df[k][j])
+            
+            row.append(sum_term)
+        result.append(row)
+    
+    return result
+
+################################################################################
+# HyperMorphic Calculus: Integration
+################################################################################
+
+# calculus/integration.py
+"""
+Implementation of HyperMorphic integration as defined in Section 5.
+"""
+
+class HyperMorphicIntegral:
+    """
+    Implementation of HyperMorphic Riemann integral for functions on HyperMorphic intervals.
+    """
+    
+    def __init__(self, 
+                 space: HyperMorphicSpace):
+        """
+        Initialize the HyperMorphic integral operator.
+        
+        Args:
+            space: HyperMorphic space
+        """
+        self.space = space
+    
+    def riemann_sum(self, 
+                   func: Callable[[HyperMorphicNumber], HyperMorphicNumber],
+                   a: HyperMorphicNumber,
+                   b: HyperMorphicNumber,
+                   n: int) -> HyperMorphicNumber:
+        """
+        Compute a Riemann sum approximation for the integral.
+        
+        Args:
+            func: Function to integrate
+            a: Lower bound
+            b: Upper bound
+            n: Number of subdivisions
+            
+        Returns:
+            Approximation of the integral
+        """
+        # Check if a < b
+        if (b - a).value.real < 0:
+            # Swap bounds
+            a, b = b, a
+            # Negate result
+            return -self.riemann_sum(func, a, b, n)
+        
+        # Compute step size
+        delta = (b - a) / n
+        
+        # Initialize sum
+        integral_sum = HyperMorphicNumber(self.space.epsilon, self.space.phi, 
+                                         self.space.psi, self.space.epsilon, 
+                                         self.space.dim)
+        
+        # Compute Riemann sum
+        for i in range(1, n+1):
+            # Compute sample point (midpoint rule)
+            x_i = a + (i - 0.5) * delta
+            
+            # Evaluate function
+            f_x_i = func(x_i)
+            
+            # Add to sum
+            integral_sum = integral_sum + (f_x_i * delta)
+        
+        return integral_sum
+    
+    def definite_integral(self, 
+                         func: Callable[[HyperMorphicNumber], HyperMorphicNumber],
+                         a: HyperMorphicNumber,
+                         b: HyperMorphicNumber,
+                         tol: float = 1e-10,
+                         max_iter: int = 100) -> HyperMorphicNumber:
+        """
+        Compute the definite HyperMorphic integral using adaptive Riemann sums.
+        This implements Definition 5.1.1.
+        
+        Args:
+            func: Function to integrate
+            a: Lower bound
+            b: Upper bound
+            tol: Tolerance for convergence
+            max_iter: Maximum number of refinements
+            
+        Returns:
+            Definite integral value
+        """
+        # Initial approximation with n = 10
+        prev_result = self.riemann_sum(func, a, b, 10)
+        
+        # Refine approximation
+        for i in range(1, max_iter+1):
+            # Double the number of subdivisions
+            n = 10 * 2**i
+            
+            # Compute new approximation
+            curr_result = self.riemann_sum(func, a, b, n)
+            
+            # Check for convergence
+            diff = abs((curr_result - prev_result).value)
+            if diff < tol:
+                return curr_result
+            
+            # Update previous result
+            prev_result = curr_result
+        
+        # Return best approximation after max_iter refinements
+        return prev_result
+    
+    def improper_integral_infinite(self, 
+                                  func: Callable[[HyperMorphicNumber], HyperMorphicNumber],
+                                  a: HyperMorphicNumber,
+                                  tol: float = 1e-10,
+                                  max_iter: int = 50) -> HyperMorphicNumber:
+        """
+        Compute an improper integral with infinite upper bound.
+        This implements Definition 5.4.1.
+        
+        Args:
+            func: Function to integrate
+            a: Lower bound
+            tol: Tolerance for convergence
+            max_iter: Maximum number of refinements
+            
+        Returns:
+            Improper integral value
+        """
+        # Initial upper bound
+        b = a + 1
+        
+        # Initial approximation
+        prev_result = self.definite_integral(func, a, b, tol)
+        
+        # Refine approximation by extending upper bound
+        for i in range(1, max_iter+1):
+            # Double the range
+            b = a + 2**i
+            
+            # Compute new approximation
+            curr_result = self.definite_integral(func, a, b, tol)
+            
+            # Check for convergence
+            diff = abs((curr_result - prev_result).value)
+            if diff < tol:
+                return curr_result
+            
+            # Update previous result
+            prev_result = curr_result
+        
+        # Return best approximation after max_iter refinements
+        return prev_result
+    
+    def improper_integral_discontinuous(self, 
+                                      func: Callable[[HyperMorphicNumber], HyperMorphicNumber],
+                                      a: HyperMorphicNumber,
+                                      b: HyperMorphicNumber,
+                                      singularity: HyperMorphicNumber,
+                                      tol: float = 1e-10,
+                                      max_iter: int = 50) -> HyperMorphicNumber:
+        """
+        Compute an improper integral with a discontinuity.
+        This implements Definition 5.4.2.
+        
+        Args:
+            func: Function to integrate
+            a: Lower bound
+            b: Upper bound
+            singularity: Point of discontinuity
+            tol: Tolerance for convergence
+            max_iter: Maximum number of refinements
+            
+        Returns:
+            Improper integral value
+        """
+        # Check if singularity is in [a, b]
+        if (singularity - a).value.real < 0 or (b - singularity).value.real < 0:
+            raise ValueError(f"Singularity {singularity} must be in [{a}, {b}]")
+        
+        # Split integral at singularity
+        if (singularity - a).value.real > self.space.epsilon:
+            # Compute left part
+            left_integral = self.definite_integral(func, a, singularity - self.space.epsilon, tol)
+        else:
+            left_integral = HyperMorphicNumber(self.space.epsilon, self.space.phi, 
+                                             self.space.psi, self.space.epsilon, 
+                                             self.space.dim)
+        
+        if (b - singularity).value.real > self.space.epsilon:
+            # Compute right part
+            right_integral = self.definite_integral(func, singularity + self.space.epsilon, b, tol)
+        else:
+            right_integral = HyperMorphicNumber(self.space.epsilon, self.space.phi, 
+                                              self.space.psi, self.space.epsilon, 
+                                              self.space.dim)
+        
+        # Combine parts
+        return left_integral + right_integral
+    
+    def integration_by_parts(self, 
+                           f: Callable[[HyperMorphicNumber], HyperMorphicNumber],
+                           g: Callable[[HyperMorphicNumber], HyperMorphicNumber],
+                           dg: Callable[[HyperMorphicNumber], HyperMorphicNumber],
+                           a: HyperMorphicNumber,
+                           b: HyperMorphicNumber,
+                           tol: float = 1e-10) -> HyperMorphicNumber:
+        """
+        Apply the HyperMorphic integration by parts formula.
+        This implements Theorem 5.2.2.
+        
+        Args:
+            f: First function
+            g: Second function
+            dg: Derivative of g
+            a: Lower bound
+            b: Upper bound
+            tol: Tolerance for convergence
+            
+        Returns:
+            Integral of f * dg
+        """
+        # Compute boundary values
+        f_a = f(a)
+        f_b = f(b)
+        g_a = g(a)
+        g_b = g(b)
+        
+        # Compute boundary term: [f(x) ⊗ᵩ g(x)]_a^b
+        boundary_term = (f_b * g_b) - (f_a * g_a)
+        
+        # Define integrand for the second term
+        def integrand(x):
+            # Compute derivative of f
+            h = HyperMorphicNumber(1e-10, self.space.phi, self.space.psi, 
+                                  self.space.epsilon, self.space.dim)
+            df = (f(x + h) - f(x)) / h
+            
+            # Return df ⊗ᵩ g
+            return df * g(x)
+        
+        # Compute the integral part: ∫_[a,b]ᵩ [D_ℍℳf(x) ⊗ᵩ g(x)]_Ψ dᵩx
+        integral_part = self.definite_integral(integrand, a, b, tol)
+        
+        # Apply formula: ∫_[a,b]ᵩ [f(x) ⊗ᵩ D_ℍℳg(x)]_Ψ dᵩx = [[f(x) ⊗ᵩ g(x)]_a^b ⊖ᵩ ∫_[a,b]ᵩ [D_ℍℳf(x) ⊗ᵩ g(x)]_Ψ dᵩx]_Φ
+        return boundary_term - integral_part
+    
+    def fourier_transform(self, 
+                         func: Callable[[HyperMorphicNumber], HyperMorphicNumber],
+                         omega: HyperMorphicNumber,
+                         a: HyperMorphicNumber = None,
+                         b: HyperMorphicNumber = None,
+                         tol: float = 1e-10) -> HyperMorphicNumber:
+        """
+        Compute the HyperMorphic Fourier Transform.
+        This implements Definition 5.5.1.
+        
+        Args:
+            func: Function to transform
+            omega: Frequency parameter
+            a: Lower bound (if None, uses improper integral)
+            b: Upper bound (if None, uses improper integral)
+            tol: Tolerance for convergence
+            
+        Returns:
+            Fourier transform at frequency omega
+        """
+        # Define integrand: f(x) ⊗ᵩ exp(-2πi ⊗ᵩ x ⊗ᵩ omega)
+        def integrand(x):
+            # Compute exponent
+            pi = HyperMorphicNumber(mp.pi, self.space.phi, self.space.psi, 
+                                   self.space.epsilon, self.space.dim)
+            i = HyperMorphicNumber(mpc(0, 1), self.space.phi, self.space.psi, 
+                                  self.space.epsilon, self.space.dim)
+            exponent = -2 * pi * i * x * omega
+            
+            # Compute exponential
+            exp_term = exponent.exp()
+            
+            # Return f(x) ⊗ᵩ exp term
+            return func(x) * exp_term
+        
+        # Compute integral
+        if a is None or b is None:
+            # Use improper integral with finite bounds for numerical reasons
+            a = HyperMorphicNumber(-100, self.space.phi, self.space.psi, 
+                                  self.space.epsilon, self.space.dim)
+            b = HyperMorphicNumber(100, self.space.phi, self.space.psi, 
+                                  self.space.epsilon, self.space.dim)
+        
+        return self.definite_integral(integrand, a, b, tol)
+    
+    def inverse_fourier_transform(self, 
+                                 func: Callable[[HyperMorphicNumber], HyperMorphicNumber],
+                                 x: HyperMorphicNumber,
+                                 a: HyperMorphicNumber = None,
+                                 b: HyperMorphicNumber = None,
+                                 tol: float = 1e-10) -> HyperMorphicNumber:
+        """
+        Compute the inverse HyperMorphic Fourier Transform.
+        This implements Theorem 5.5.2.
+        
+        Args:
+            func: Function to transform (Fourier transform)
+            x: Spatial parameter
+            a: Lower bound (if None, uses improper integral)
+            b: Upper bound (if None, uses improper integral)
+            tol: Tolerance for convergence
+            
+        Returns:
+            Inverse Fourier transform at position x
+        """
+        # Define integrand: F_ᵩ{f}(ω) ⊗ᵩ exp(2πi ⊗ᵩ x ⊗ᵩ ω)
+        def integrand(omega):
+            # Compute exponent
+            pi = HyperMorphicNumber(mp.pi, self.space.phi, self.space.psi, 
+                                   self.space.epsilon, self.space.dim)
+            i = HyperMorphicNumber(mpc(0, 1), self.space.phi, self.space.psi, 
+                                  self.space.epsilon, self.space.dim)
+            exponent = 2 * pi * i * x * omega
+            
+            # Compute exponential
+            exp_term = exponent.exp()
+            
+            # Return F_ᵩ{f}(ω) ⊗ᵩ exp term
+            return func(omega) * exp_term
+        
+        # Compute integral
+        if a is None or b is None:
+            # Use improper integral with finite bounds for numerical reasons
+            a = HyperMorphicNumber(-100, self.space.phi, self.space.psi, 
+                                  self.space.epsilon, self.space.dim)
+            b = HyperMorphicNumber(100, self.space.phi, self.space.psi, 
+                                  self.space.epsilon, self.space.dim)
+        
+        return self.definite_integral(integrand, a, b, tol)
+
+################################################################################
+# Applications of HyperMorphic Calculus
+################################################################################
+
+# applications/quantum_mechanics.py
+"""
+Implementation of HyperMorphic Quantum Mechanics as described in Section 6.1.
+"""
+
+class HyperMorphicQuantumMechanics:
+    """
+    Implementation of quantum mechanics in the HyperMorphic framework.
+    """
+    
+    def __init__(self, 
+                 space: HyperMorphicSpace,
+                 hbar: HyperMorphicNumber):
+        """
+        Initialize HyperMorphic quantum mechanics.
+        
+        Args:
+            space: HyperMorphic space
+            hbar: HyperMorphic Planck constant
+        """
+        self.space = space
+        self.hbar = hbar
+        self.derivative = HyperMorphicDerivative(space)
+        self.integral = HyperMorphicIntegral(space)
+        
+        # Create imaginary unit
+        self.i = HyperMorphicNumber(mpc(0, 1), space.phi, space.psi, 
+                                   space.epsilon, space.dim)
+    
+    def schrodinger_equation(self, 
+                            psi: Callable[[HyperMorphicNumber, HyperMorphicNumber], HyperMorphicNumber],
+                            hamiltonian: Callable[[Callable[[HyperMorphicNumber], HyperMorphicNumber], 
+                                                 HyperMorphicNumber], HyperMorphicNumber],
+                            x: HyperMorphicNumber,
+                            t: HyperMorphicNumber,
+                            dt: HyperMorphicNumber) -> HyperMorphicNumber:
+        """
+        Apply the HyperMorphic Schrödinger equation.
+        This implements Theorem 6.1.1.
+        
+        Args:
+            psi: Wave function ψ(x, t)
+            hamiltonian: Hamiltonian operator Ĥ_ᵩ
+            x: Position
+            t: Time
+            dt: Time step
+            
+        Returns:
+            Time derivative of wave function
+        """
+        # Create function of x for fixed t
+        def psi_x(pos):
+            return psi(pos, t)
+        
+        # Apply Hamiltonian
+        H_psi = hamiltonian(psi_x, x)
+        
+        # Apply Schrödinger equation: [iℏ_ᵩ ⊗ᵩ ∂ᵩψ/∂t]_Φ = [Ĥ_ᵩ ⊗ᵩ ψ]_Ψ
+        # Solving for ∂ᵩψ/∂t
+        dpsi_dt = H_psi / (self.i * self.hbar)
+        
+        return dpsi_dt
+    
+    def time_evolution(self, 
+                      psi_0: Callable[[HyperMorphicNumber], HyperMorphicNumber],
+                      hamiltonian: Callable[[Callable[[HyperMorphicNumber], HyperMorphicNumber], 
+                                           HyperMorphicNumber], HyperMorphicNumber],
+                      x: HyperMorphicNumber,
+                      t_final: HyperMorphicNumber,
+                      dt: HyperMorphicNumber,
+                      steps: int = 100) -> List[HyperMorphicNumber]:
+        """
+        Evolve a quantum state over time.
+        
+        Args:
+            psi_0: Initial wave function ψ(x, 0)
+            hamiltonian: Hamiltonian operator
+            x: Position
+            t_final: Final time
+            dt: Time step
+            steps: Number of time steps
+            
+        Returns:
+            Wave function values at each time step
+        """
+        # Initialize wavefunction history
+        psi_history = []
+        
+        # Set initial wavefunction
+        psi_t = psi_0(x)
+        psi_history.append(psi_t)
+        
+        # Create time variable
+        t = HyperMorphicNumber(self.space.epsilon, self.space.phi, 
+                              self.space.psi, self.space.epsilon, 
+                              self.space.dim)
+        
+        # Define full wavefunction
+        def psi(pos, time):
+            # Simple interpolation for now
+            idx = int((time / t_final).value.real * steps)
+            if idx >= len(psi_history):
+                return psi_history[-1]
+            else:
+                return psi_history[idx]
+        
+        # Time evolution loop
+        for step in range(1, steps+1):
+            # Update time
+            t = t + dt
+            
+            # Compute derivative
+            dpsi_dt = self.schrodinger_equation(psi, hamiltonian, x, t, dt)
+            
+            # Update wavefunction using Euler method
+            psi_t = psi_t + dpsi_dt * dt
+            
+            # Append to history
+            psi_history.append(psi_t)
+        
+        return psi_history
+    
+    def harmonic_oscillator_hamiltonian(self, 
+                                       m: HyperMorphicNumber,
+                                       omega: HyperMorphicNumber) -> Callable:
+        """
+        Create a HyperMorphic harmonic oscillator Hamiltonian.
+        This relates to Application 6.1.2.
+        
+        Args:
+            m: HyperMorphic mass
+            omega: HyperMorphic frequency
+            
+        Returns:
+            Hamiltonian operator
+        """
+        def hamiltonian(psi_x, x):
+            # Compute second derivative
+            h = HyperMorphicNumber(1e-5, self.space.phi, self.space.psi, 
+                                  self.space.epsilon, self.space.dim)
+            
+            d2psi_dx2 = (psi_x(x + h) - 2 * psi_x(x) + psi_x(x - h)) / (h * h)
+            
+            # Compute potential term: (1/2) * m * omega^2 * x^2 * psi(x)
+            V_psi = (m * omega * omega * x * x * psi_x(x)) / 2
+            
+            # Compute kinetic term: -(hbar^2 / (2*m)) * d^2psi/dx^2
+            T_psi = -(self.hbar * self.hbar * d2psi_dx2) / (2 * m)
+            
+            # Return H * psi = T * psi + V * psi
+            return T_psi + V_psi
+        
+        return hamiltonian
+    
+    def energy_eigenvalues(self, 
+                          m: HyperMorphicNumber,
+                          omega: HyperMorphicNumber,
+                          n_max: int) -> List[HyperMorphicNumber]:
+        """
+        Compute energy eigenvalues for the harmonic oscillator.
+        This implements Application 6.1.2.
+        
+        Args:
+            m: HyperMorphic mass
+            omega: HyperMorphic frequency
+            n_max: Maximum quantum number
+            
+        Returns:
+            List of energy eigenvalues E_0, E_1, ..., E_n_max
+        """
+        # Initialize list of eigenvalues
+        eigenvalues = []
+        
+        # Compute eigenvalues: E_n = [(n ⊕ᵩ 1/2) ⊗ᵩ ℏ_ᵩ ⊗ᵩ ω_ᵩ]_Φ
+        for n in range(n_max + 1):
+            # Create quantum number
+            n_hm = HyperMorphicNumber(n, self.space.phi, self.space.psi, 
+                                     self.space.epsilon, self.space.dim)
+            
+            # Create 1/2
+            half = HyperMorphicNumber(0.5, self.space.phi, self.space.psi, 
+                                     self.space.epsilon, self.space.dim)
+            
+            # Compute eigenvalue
+            E_n = (n_hm + half) * self.hbar * omega
+            
+            # Add to list
+            eigenvalues.append(E_n)
+        
+        return eigenvalues
+    
+    def hermite_function(self, 
+                        n: int, 
+                        m: HyperMorphicNumber,
+                        omega: HyperMorphicNumber,
+                        x: HyperMorphicNumber) -> HyperMorphicNumber:
+        """
+        Compute the nth HyperMorphic Hermite function.
+        These are eigenfunctions of the harmonic oscillator.
+        
+        Args:
+            n: Quantum number
+            m: HyperMorphic mass
+            omega: HyperMorphic frequency
+            x: Position
+            
+        Returns:
+            Value of the nth Hermite function at x
+        """
+        # Compute characteristic length
+        alpha = (m * omega / self.hbar).value.real ** 0.5
+        
+        # Convert to mpmath for Hermite polynomial calculation
+        x_val = x.value
+        
+        # Compute Hermite polynomial
+        H_n = mp.hermite(n, alpha * x_val)
+        
+        # Compute normalization factor
+        norm_factor = (alpha / (2**n * mp.factorial(n) * mp.sqrt(mp.pi))) ** 0.5
+        
+        # Compute Gaussian factor
+        gauss_factor = mp.exp(-alpha**2 * x_val**2 / 2)
+        
+        # Compute wavefunction
+        psi_n = norm_factor * H_n * gauss_factor
+        
+        return HyperMorphicNumber(psi_n, self.space.phi, self.space.psi, 
+                                 self.space.epsilon, self.space.dim)
+
+# applications/fluid_dynamics.py
+"""
+Implementation of HyperMorphic Fluid Dynamics as described in Section 6.2.
+"""
+
+class HyperMorphicFluidDynamics:
+    """
+    Implementation of fluid dynamics in the HyperMorphic framework.
+    """
+    
+    def __init__(self, 
+                 space: HyperMorphicSpace,
+                 rho: HyperMorphicNumber,
+                 nu: HyperMorphicNumber):
+        """
+        Initialize HyperMorphic fluid dynamics.
+        
+        Args:
+            space: HyperMorphic space
+            rho: HyperMorphic density
+            nu: HyperMorphic kinematic viscosity
+        """
+        self.space = space
+        self.rho = rho
+        self.nu = nu
+        self.derivative = HyperMorphicDerivative(space)
+        self.integral = HyperMorphicIntegral(space)
+    
+    def navier_stokes(self, 
+                     v: List[Callable[[List[HyperMorphicNumber], HyperMorphicNumber], 
+                                    HyperMorphicNumber]],
+                     p: Callable[[List[HyperMorphicNumber], HyperMorphicNumber], 
+                               HyperMorphicNumber],
+                     x: List[HyperMorphicNumber],
+                     t: HyperMorphicNumber,
+                     dt: HyperMorphicNumber) -> Tuple[List[HyperMorphicNumber], HyperMorphicNumber]:
+        """
+        Apply the HyperMorphic Navier-Stokes equations.
+        This implements Theorem 6.2.1.
+        
+        Args:
+            v: Velocity field components v_i(x, t)
+            p: Pressure field p(x, t)
+            x: Position
+            t: Time
+            dt: Time step
+            
+        Returns:
+            Time derivatives of velocity and pressure
+        """
+        # Get dimension
+        dim = len(v)
+        
+        # Create functions of x for fixed t
+        def v_x(i, pos):
+            return v[i](pos, t)
+        
+        def p_x(pos):
+            return p(pos, t)
+        
+        # Initialize derivatives
+        dv_dt = []
+        
+        # Compute velocity derivatives
+        for i in range(dim):
+            # Create a function for the ith velocity component
+            v_i = lambda pos: v_x(i, pos)
+            
+            # Initialize terms
+            advection_term = HyperMorphicNumber(self.space.epsilon, self.space.phi, 
+                                              self.space.psi, self.space.epsilon, 
+                                              self.space.dim)
+            
+            # Compute advection term: (v ⊗ᵩ ∇ᵩ)v
+            for j in range(dim):
+                # Compute partial derivative of v_i with respect to x_j
+                h = HyperMorphicNumber(1e-5, self.space.phi, self.space.psi, 
+                                      self.space.epsilon, self.space.dim)
+                
+                x_j_plus = list(x)
+                x_j_plus[j] = x[j] + h
+                
+                dv_i_dx_j = (v_i(x_j_plus) - v_i(x)) / h
+                
+                # Add to advection term
+                advection_term = advection_term + v_x(j, x) * dv_i_dx_j
+            
+            # Compute pressure gradient term: -(1/ρ_ᵩ) ⊗ᵩ ∇ᵩp
+            h = HyperMorphicNumber(1e-5, self.space.phi, self.space.psi, 
+                                  self.space.epsilon, self.space.dim)
+            
+            x_i_plus = list(x)
+            x_i_plus[i] = x[i] + h
+            
+            dp_dx_i = (p_x(x_i_plus) - p_x(x)) / h
+            
+            pressure_term = -dp_dx_i / self.rho
+            
+            # Compute viscosity term: ν_ᵩ ⊗ᵩ ∇ᵩ²v
+            laplacian_v_i = HyperMorphicNumber(self.space.epsilon, self.space.phi, 
+                                             self.space.psi, self.space.epsilon, 
+                                             self.space.dim)
+            
+            for j in range(dim):
+                # Compute second derivative
+                h = HyperMorphicNumber(1e-5, self.space.phi, self.space.psi, 
+                                      self.space.epsilon, self.space.dim)
+                
+                x_j_plus = list(x)
+                x_j_plus[j] = x[j] + h
+                
+                x_j_minus = list(x)
+                x_j_minus[j] = x[j] - h
+                
+                d2v_i_dx_j2 = (v_i(x_j_plus) - 2 * v_i(x) + v_i(x_j_minus)) / (h * h)
+                
+                # Add to Laplacian
+                laplacian_v_i = laplacian_v_i + d2v_i_dx_j2
+            
+            viscosity_term = self.nu * laplacian_v_i
+            
+            # Apply Navier-Stokes equation: [∂ᵩv/∂t ⊕ᵩ (v ⊗ᵩ ∇ᵩ)v]_Φ = [-(1/ρ_ᵩ) ⊗ᵩ ∇ᵩp ⊕ᵩ ν_ᵩ ⊗ᵩ ∇ᵩ²v]_Ψ
+            dv_i_dt = (pressure_term + viscosity_term) - advection_term
+            
+            # Add to derivatives list
+            dv_dt.append(dv_i_dt)
+        
+        # Compute pressure derivative using continuity equation
+        div_v = HyperMorphicNumber(self.space.epsilon, self.space.phi, 
+                                  self.space.psi, self.space.epsilon, 
+                                  self.space.dim)
+        
+        for i in range(dim):
+            # Compute partial derivative of v_i with respect to x_i
+            h = HyperMorphicNumber(1e-5, self.space.phi, self.space.psi, 
+                                  self.space.epsilon, self.space.dim)
+            
+            x_i_plus = list(x)
+            x_i_plus[i] = x[i] + h
+            
+            dv_i_dx_i = (v_x(i, x_i_plus) - v_x(i, x)) / h
+            
+            # Add to divergence
+            div_v = div_v + dv_i_dx_i
+        
+        # Return derivatives
+        return dv_dt, div_v
+    
+    def energy_cascade(self, 
+                      k: HyperMorphicNumber,
+                      epsilon: HyperMorphicNumber,
+                      C: HyperMorphicNumber = None) -> HyperMorphicNumber:
+        """
+        Compute the energy spectrum in the inertial range.
+        This implements Application 6.2.2.
+        
+        Args:
+            k: HyperMorphic wave number
+            epsilon: HyperMorphic energy dissipation rate
+            C: HyperMorphic Kolmogorov constant (default: 1.5)
+            
+        Returns:
+            Energy spectrum E(k)
+        """
+        # Set default Kolmogorov constant if not provided
+        if C is None:
+            C = HyperMorphicNumber(1.5, self.space.phi, self.space.psi, 
+                                  self.space.epsilon, self.space.dim)
+        
+        # Create exponents
+        two_thirds = HyperMorphicNumber(2/3, self.space.phi, self.space.psi, 
+                                       self.space.epsilon, self.space.dim)
+        
+        neg_five_thirds = HyperMorphicNumber(-5/3, self.space.phi, self.space.psi, 
+                                            self.space.epsilon, self.space.dim)
+        
+        # Compute energy spectrum: E(k) = C_ᵩ ⊗ᵩ ε_ᵩ^(2/3) ⊗ᵩ k^(-5/3)
+        energy = C * epsilon ** two_thirds * k ** neg_five_thirds
+        
+        return energy
+
+# applications/finance.py
+"""
+Implementation of HyperMorphic Financial Mathematics as described in Section 6.3.
+"""
+
+class HyperMorphicFinance:
+    """
+    Implementation of financial mathematics in the HyperMorphic framework.
+    """
+    
+    def __init__(self, 
+                 space: HyperMorphicSpace):
+        """
+        Initialize HyperMorphic finance.
+        
+        Args:
+            space: HyperMorphic space
+        """
+        self.space = space
+        self.derivative = HyperMorphicDerivative(space)
+        self.integral = HyperMorphicIntegral(space)
+    
+    def black_scholes_equation(self, 
+                              V: Callable[[HyperMorphicNumber, HyperMorphicNumber], HyperMorphicNumber],
+                              S: HyperMorphicNumber,
+                              t: HyperMorphicNumber,
+                              r: HyperMorphicNumber,
+                              sigma: HyperMorphicNumber,
+                              dt: HyperMorphicNumber,
+                              dS: HyperMorphicNumber) -> HyperMorphicNumber:
+        """
+        Apply the HyperMorphic Black-Scholes equation.
+        This implements Theorem 6.3.1.
+        
+        Args:
+            V: Option price function V(S, t)
+            S: Stock price
+            t: Time
+            r: HyperMorphic risk-free interest rate
+            sigma: HyperMorphic volatility
+            dt: Time step
+            dS: Stock price step
+            
+        Returns:
+            Time derivative of option price
+        """
+        # Compute partial derivatives
+        dV_dt = (V(S, t + dt) - V(S, t)) / dt
+        dV_dS = (V(S + dS, t) - V(S, t)) / dS
+        d2V_dS2 = (V(S + dS, t) - 2 * V(S, t) + V(S - dS, t)) / (dS * dS)
+        
+        # Compute first term: (1/2) ⊗ᵩ σ_ᵩ² ⊗ᵩ S² ⊗ᵩ ∂ᵩ²V/∂S²
+        half = HyperMorphicNumber(0.5, self.space.phi, self.space.psi, 
+                                 self.space.epsilon, self.space.dim)
+        
+        term1 = half * sigma * sigma * S * S * d2V_dS2
+        
+        # Compute second term: r_ᵩ ⊗ᵩ S ⊗ᵩ ∂ᵩV/∂S
+        term2 = r * S * dV_dS
+        
+        # Compute right-hand side: r_ᵩ ⊗ᵩ V
+        rhs = r * V(S, t)
+        
+        # Apply Black-Scholes equation:
+        # [∂ᵩV/∂t ⊕ᵩ (1/2) ⊗ᵩ σ_ᵩ² ⊗ᵩ S² ⊗ᵩ ∂ᵩ²V/∂S² ⊕ᵩ r_ᵩ ⊗ᵩ S ⊗ᵩ ∂ᵩV/∂S]_Φ = [r_ᵩ ⊗ᵩ V]_Ψ
+        # Solving for ∂ᵩV/∂t
+        dV_dt = rhs - (term1 + term2)
+        
+        return dV_dt
+    
+    def option_price(self, 
+                    S: HyperMorphicNumber,
+                    K: HyperMorphicNumber,
+                    r: HyperMorphicNumber,
+                    sigma: HyperMorphicNumber,
+                    T: HyperMorphicNumber,
+                    option_type: str = 'call') -> HyperMorphicNumber:
+        """
+        Compute the price of a European option using the HyperMorphic Black-Scholes formula.
+        This implements Application 6.3.2.
+        
+        Args:
+            S: Stock price
+            K: Strike price
+            r: HyperMorphic risk-free interest rate
+            sigma: HyperMorphic volatility
+            T: Time to maturity
+            option_type: 'call' or 'put'
+            
+        Returns:
+            Option price
+        """
+        # Check if HyperMorphic numbers have non-negligible imaginary parts
+        for val in [S, K, r, sigma, T]:
+            if abs(val.value.imag) > self.space.epsilon:
+                raise ValueError(f"Imaginary part too large: {val}")
+        
+        # Extract real parts for calculations
+        S_real = S.value.real
+        K_real = K.value.real
+        r_real = r.value.real
+        sigma_real = sigma.value.real
+        T_real = T.value.real
+        
+        # Compute d1 and d2
+        if S_real < self.space.epsilon or K_real < self.space.epsilon:
+            raise ValueError(f"Stock price and strike price must be positive")
+        
+        # Compute ln(S/K)
+        ln_S_K = mp.log(S_real / K_real)
+        
+        # Compute sqrt(T)
+        sqrt_T = mp.sqrt(T_real)
+        
+        # Compute d1: [(ln(S/K) ⊕ᵩ (r_ᵩ ⊕ᵩ σ_ᵩ²/2) ⊗ᵩ T) ⊘ᵩ (σ_ᵩ ⊗ᵩ √T)]_Ψ
+        d1_num = ln_S_K + (r_real + 0.5 * sigma_real * sigma_real) * T_real
+        d1_denom = sigma_real * sqrt_T
+        d1 = d1_num / d1_denom
+        
+        # Compute d2: [d₁ ⊖ᵩ σ_ᵩ ⊗ᵩ √T]_Ψ
+        d2 = d1 - sigma_real * sqrt_T
+        
+        # Compute N(d1) and N(d2)
+        N_d1 = 0.5 * (1 + mp.erf(d1 / mp.sqrt(2)))
+        N_d2 = 0.5 * (1 + mp.erf(d2 / mp.sqrt(2)))
+        
+        # Compute exp(-r_ᵩ ⊗ᵩ T)
+        exp_minus_rT = mp.exp(-r_real * T_real)
+        
+                    # Compute option price based on type
+        if option_type.lower() == 'call':
+            # Call option price: C = [S ⊗ᵩ N(d₁) ⊖ᵩ K ⊗ᵩ exp(-r_ᵩ ⊗ᵩ T) ⊗ᵩ N(d₂)]_Φ
+            price_real = S_real * N_d1 - K_real * exp_minus_rT * N_d2
+        elif option_type.lower() == 'put':
+            # Put option price via put-call parity
+            N_minus_d1 = 0.5 * (1 + mp.erf(-d1 / mp.sqrt(2)))
+            N_minus_d2 = 0.5 * (1 + mp.erf(-d2 / mp.sqrt(2)))
+            price_real = K_real * exp_minus_rT * N_minus_d2 - S_real * N_minus_d1
+        else:
+            raise ValueError(f"Invalid option type: {option_type}. Must be 'call' or 'put'")
+        
+        # Return as HyperMorphicNumber
+        return HyperMorphicNumber(price_real, self.space.phi, self.space.psi, 
+                                 self.space.epsilon, self.space.dim)
+    
+    def implied_volatility(self, 
+                          market_price: HyperMorphicNumber,
+                          S: HyperMorphicNumber,
+                          K: HyperMorphicNumber,
+                          r: HyperMorphicNumber,
+                          T: HyperMorphicNumber,
+                          option_type: str = 'call',
+                          tol: float = 1e-6,
+                          max_iter: int = 100) -> HyperMorphicNumber:
+        """
+        Compute implied volatility using the Newton-Raphson method.
+        
+        Args:
+            market_price: Observed market price of the option
+            S: Stock price
+            K: Strike price
+            r: HyperMorphic risk-free interest rate
+            T: Time to maturity
+            option_type: 'call' or 'put'
+            tol: Tolerance for convergence
+            max_iter: Maximum number of iterations
+            
+        Returns:
+            Implied volatility
+        """
+        # Initial guess for volatility
+        sigma = HyperMorphicNumber(0.2, self.space.phi, self.space.psi, 
+                                  self.space.epsilon, self.space.dim)
+        
+        # Newton-Raphson iteration
+        for i in range(max_iter):
+            # Compute option price with current sigma
+            price = self.option_price(S, K, r, sigma, T, option_type)
+            
+            # Compute error
+            error = price - market_price
+            
+            # Check for convergence
+            if abs(error.value.real) < tol:
+                return sigma
+            
+            # Compute vega (derivative of price with respect to sigma)
+            d_sigma = HyperMorphicNumber(0.0001, self.space.phi, self.space.psi, 
+                                        self.space.epsilon, self.space.dim)
+            
+            price_plus = self.option_price(S, K, r, sigma + d_sigma, T, option_type)
+            vega = (price_plus - price) / d_sigma
+            
+            # Update sigma
+            sigma = sigma - error / vega
+        
+        # Return best approximation after max_iter iterations
+        return sigma
+
+# applications/machine_learning.py
+"""
+Implementation of HyperMorphic Machine Learning as described in Section 6.4.
+"""
+
+class HyperMorphicML:
+    """
+    Implementation of machine learning in the HyperMorphic framework.
+    """
+    
+    def __init__(self, 
+                 space: HyperMorphicSpace):
+        """
+        Initialize HyperMorphic machine learning.
+        
+        Args:
+            space: HyperMorphic space
+        """
+        self.space = space
+        self.derivative = HyperMorphicDerivative(space)
+    
+    def gradient_descent(self, 
+                        loss_func: Callable[[List[HyperMorphicNumber]], HyperMorphicNumber],
+                        initial_weights: List[HyperMorphicNumber],
+                        learning_rate: HyperMorphicNumber,
+                        num_iterations: int,
+                        tol: float = 1e-6) -> List[HyperMorphicNumber]:
+        """
+        Perform HyperMorphic gradient descent optimization.
+        This implements Theorem 6.4.1.
+        
+        Args:
+            loss_func: Loss function to minimize
+            initial_weights: Initial weights
+            learning_rate: HyperMorphic learning rate
+            num_iterations: Maximum number of iterations
+            tol: Tolerance for convergence
+            
+        Returns:
+            Optimized weights
+        """
+        # Initialize weights
+        weights = initial_weights.copy()
+        
+        for i in range(num_iterations):
+            # Compute gradient
+            gradient = []
+            for j in range(len(weights)):
+                # Compute partial derivative with respect to weight j
+                h = HyperMorphicNumber(1e-5, self.space.phi, self.space.psi, 
+                                      self.space.epsilon, self.space.dim)
+                
+                weights_plus_h = weights.copy()
+                weights_plus_h[j] = weights[j] + h
+                
+                # Compute numerical gradient
+                df_dw_j = (loss_func(weights_plus_h) - loss_func(weights)) / h
+                
+                gradient.append(df_dw_j)
+            
+            # Check for convergence
+            gradient_norm = 0
+            for grad in gradient:
+                gradient_norm += abs(grad.value.real)**2
+            
+            gradient_norm = gradient_norm**0.5
+            
+            if gradient_norm < tol:
+                break
+            
+            # Update weights using gradient descent: w_(t+1) = [w_t ⊖ᵩ η_ᵩ ⊗ᵩ ∇ᵩL(w_t)]_Φ
+            for j in range(len(weights)):
+                weights[j] = weights[j] - learning_rate * gradient[j]
+        
+        return weights
+    
+    def neural_network_layer(self, 
+                            x: List[HyperMorphicNumber],
+                            W: List[List[HyperMorphicNumber]],
+                            b: List[HyperMorphicNumber],
+                            activation: Callable[[HyperMorphicNumber], HyperMorphicNumber]) -> List[HyperMorphicNumber]:
+        """
+        Compute the output of a HyperMorphic neural network layer.
+        This implements Application 6.4.2.
+        
+        Args:
+            x: Input vector
+            W: Weight matrix
+            b: Bias vector
+            activation: Activation function
+            
+        Returns:
+            Layer output
+        """
+        # Check dimensions
+        if len(W) == 0 or len(W[0]) != len(x):
+            raise ValueError(f"Weight matrix dimensions ({len(W)}x{len(W[0]) if len(W) > 0 else 0}) incompatible with input vector length ({len(x)})")
+        
+        if len(W) != len(b):
+            raise ValueError(f"Weight matrix rows ({len(W)}) must match bias vector length ({len(b)})")
+        
+        # Compute linear transformation: W ⊗ᵩ x ⊕ᵩ b
+        output = []
+        
+        for i in range(len(W)):
+            # Compute dot product for row i
+            sum_term = HyperMorphicNumber(self.space.epsilon, self.space.phi, 
+                                         self.space.psi, self.space.epsilon, 
+                                         self.space.dim)
+            
+            for j in range(len(x)):
+                sum_term = sum_term + W[i][j] * x[j]
+            
+            # Add bias
+            sum_term = sum_term + b[i]
+            
+            # Apply activation function
+            activated = activation(sum_term)
+            
+            # Add to output
+            output.append(activated)
+        
+        return output
+    
+    def sigmoid(self, x: HyperMorphicNumber) -> HyperMorphicNumber:
+        """
+        HyperMorphic sigmoid activation function.
+        
+        Args:
+            x: Input value
+            
+        Returns:
+            sigmoid(x)
+        """
+        # Compute exp(-x)
+        neg_x = -x
+        exp_neg_x = neg_x.exp()
+        
+        # Compute 1 / (1 + exp(-x))
+        one = HyperMorphicNumber(1, self.space.phi, self.space.psi, 
+                                self.space.epsilon, self.space.dim)
+        
+        return one / (one + exp_neg_x)
+    
+    def tanh_activation(self, x: HyperMorphicNumber) -> HyperMorphicNumber:
+        """
+        HyperMorphic tanh activation function.
+        
+        Args:
+            x: Input value
+            
+        Returns:
+            tanh(x)
+        """
+        return x.tanh()
+    
+    def relu(self, x: HyperMorphicNumber) -> HyperMorphicNumber:
+        """
+        HyperMorphic ReLU activation function.
+        
+        Args:
+            x: Input value
+            
+        Returns:
+            max(0, x)
+        """
+        zero = HyperMorphicNumber(self.space.epsilon, self.space.phi, 
+                                 self.space.psi, self.space.epsilon, 
+                                 self.space.dim)
+        
+        # Return max(0, x)
+        if x.value.real > zero.value.real:
+            return x
+        else:
+            return zero
+    
+    def forward_pass(self, 
+                    x: List[HyperMorphicNumber],
+                    layers: List[Tuple[List[List[HyperMorphicNumber]], 
+                                     List[HyperMorphicNumber], 
+                                     Callable[[HyperMorphicNumber], HyperMorphicNumber]]]) -> List[HyperMorphicNumber]:
+        """
+        Perform a forward pass through a HyperMorphic neural network.
+        
+        Args:
+            x: Input vector
+            layers: List of (weights, biases, activation) tuples
+            
+        Returns:
+            Network output
+        """
+        # Initialize with input
+        layer_output = x
+        
+        # Forward pass through each layer
+        for W, b, activation in layers:
+            layer_output = self.neural_network_layer(layer_output, W, b, activation)
+        
+        return layer_output
+
+# applications/cosmology.py
+"""
+Implementation of HyperMorphic Cosmology as described in Section 6.5.
+"""
+
+class HyperMorphicCosmology:
+    """
+    Implementation of cosmology in the HyperMorphic framework.
+    """
+    
+    def __init__(self, 
+                 space: HyperMorphicSpace,
+                 G: HyperMorphicNumber):
+        """
+        Initialize HyperMorphic cosmology.
+        
+        Args:
+            space: HyperMorphic space
+            G: HyperMorphic gravitational constant
+        """
+        self.space = space
+        self.G = G
+        self.derivative = HyperMorphicDerivative(space)
+        self.integral = HyperMorphicIntegral(space)
+    
+    def friedmann_equations(self, 
+                           a: HyperMorphicNumber,
+                           a_dot: HyperMorphicNumber,
+                           rho: HyperMorphicNumber,
+                           p: HyperMorphicNumber,
+                           k: HyperMorphicNumber,
+                           Lambda: HyperMorphicNumber) -> Tuple[HyperMorphicNumber, HyperMorphicNumber]:
+        """
+        Apply the HyperMorphic Friedmann equations.
+        This implements Theorem 6.5.1.
+        
+        Args:
+            a: Scale factor
+            a_dot: Time derivative of scale factor
+            rho: HyperMorphic energy density
+            p: HyperMorphic pressure
+            k: HyperMorphic curvature parameter
+            Lambda: HyperMorphic cosmological constant
+            
+        Returns:
+            (H², ä/a) where H is the Hubble parameter
+        """
+        # Compute Hubble parameter squared: H² = (ȧ/a)²
+        H_squared = (a_dot / a)**2
+        
+        # Compute first Friedmann equation: [(ȧ/a)²]_Φ = [(8πG_ᵩ/3) ⊗ᵩ ρ_ᵩ ⊖ᵩ k_ᵩ/a² ⊕ᵩ Λ_ᵩ/3]_Ψ
+        pi = HyperMorphicNumber(mp.pi, self.space.phi, self.space.psi, 
+                               self.space.epsilon, self.space.dim)
+        
+        eight_pi_G_over_3 = (8 * pi * self.G) / 3
+        
+        rhs_first = eight_pi_G_over_3 * rho - k / (a*a) + Lambda / 3
+        
+        # Compute second Friedmann equation: [ä/a]_Φ = [-(4πG_ᵩ/3) ⊗ᵩ (ρ_ᵩ ⊕ᵩ 3p_ᵩ) ⊕ᵩ Λ_ᵩ/3]_Ψ
+        four_pi_G_over_3 = (4 * pi * self.G) / 3
+        
+        # Compute acceleration parameter: ä/a
+        a_dotdot_over_a = -four_pi_G_over_3 * (rho + 3*p) + Lambda / 3
+        
+        return H_squared, a_dotdot_over_a
+    
+    def scale_factor_evolution(self, 
+                              a0: HyperMorphicNumber,
+                              H0: HyperMorphicNumber,
+                              omega_m: HyperMorphicNumber,
+                              omega_lambda: HyperMorphicNumber,
+                              omega_k: HyperMorphicNumber,
+                              t_max: HyperMorphicNumber,
+                              dt: HyperMorphicNumber,
+                              steps: int = 1000) -> Tuple[List[HyperMorphicNumber], List[HyperMorphicNumber]]:
+        """
+        Evolve the scale factor over time.
+        
+        Args:
+            a0: Initial scale factor
+            H0: Initial Hubble parameter
+            omega_m: Matter density parameter
+            omega_lambda: Dark energy density parameter
+            omega_k: Curvature density parameter
+            t_max: Maximum time
+            dt: Time step
+            steps: Number of time steps
+            
+        Returns:
+            (times, scale_factors)
+        """
+        # Initialize lists
+        times = []
+        scale_factors = []
+        
+        # Set initial conditions
+        a = a0
+        a_dot = a0 * H0
+        t = HyperMorphicNumber(self.space.epsilon, self.space.phi, 
+                              self.space.psi, self.space.epsilon, 
+                              self.space.dim)
+        
+        # Critical density at present
+        rho_crit0 = (3 * H0*H0) / (8 * mp.pi * self.G)
+        
+        # Add initial point
+        times.append(t)
+        scale_factors.append(a)
+        
+        # Evolution loop
+        for step in range(1, steps+1):
+            # Update time
+            t = t + dt
+            
+            # Compute rho and p at this time
+            # Matter: rho ~ a^(-3), p = 0
+            rho_m = omega_m * rho_crit0 * (a0 / a)**3
+            p_m = HyperMorphicNumber(self.space.epsilon, self.space.phi, 
+                                    self.space.psi, self.space.epsilon, 
+                                    self.space.dim)
+            
+            # Dark energy: rho = constant, p = -rho
+            rho_lambda = omega_lambda * rho_crit0
+            p_lambda = -rho_lambda
+            
+            # Total energy density and pressure
+            rho = rho_m + rho_lambda
+            p = p_m + p_lambda
+            
+            # Compute k and Lambda
+            k = -omega_k * H0*H0
+            Lambda = 3 * omega_lambda * H0*H0
+            
+            # Get acceleration from Friedmann equations
+            _, a_dotdot_over_a = self.friedmann_equations(a, a_dot, rho, p, k, Lambda)
+            
+            # Compute a_dotdot
+            a_dotdot = a * a_dotdot_over_a
+            
+            # Update a and a_dot using Verlet integration
+            a_new = a + a_dot * dt + 0.5 * a_dotdot * dt*dt
+            a_dot_mid = a_dot + 0.5 * a_dotdot * dt
+            
+            # Recompute a_dotdot at midpoint
+            rho_m_mid = omega_m * rho_crit0 * (a0 / a_dot_mid)**3
+            rho_lambda_mid = omega_lambda * rho_crit0
+            rho_mid = rho_m_mid + rho_lambda_mid
+            p_mid = p_lambda  # p_m is zero
+            
+            _, a_dotdot_mid = self.friedmann_equations(a_dot_mid, a_dot, rho_mid, p_mid, k, Lambda)
+            
+            # Finalize a_dot update
+            a_dotdot_mid_val = a_dot_mid * a_dotdot_mid
+            a_dot_new = a_dot + a_dotdot_mid_val * dt
+            
+            # Update a and a_dot
+            a = a_new
+            a_dot = a_dot_new
+            
+            # Add to lists
+            times.append(t)
+            scale_factors.append(a)
+        
+        return times, scale_factors
+    
+    def dark_energy_eos(self, 
+                       z: HyperMorphicNumber,
+                       w0: HyperMorphicNumber,
+                       wa: HyperMorphicNumber) -> HyperMorphicNumber:
+        """
+        Compute the equation of state for dark energy as a function of redshift.
+        This implements Application 6.5.2.
+        
+        Args:
+            z: Redshift
+            w0: Equation of state parameter at z=0
+            wa: Evolution parameter
+            
+        Returns:
+            Equation of state w(z)
+        """
+        # Compute: w_ᵩ(z) = [w₀ ⊕ᵩ w_a ⊗ᵩ (z ⊘ᵩ (1 ⊕ᵩ z))]_Φ
+        one = HyperMorphicNumber(1, self.space.phi, self.space.psi, 
+                                self.space.epsilon, self.space.dim)
+        
+        return w0 + wa * (z / (one + z))
+    
+    def luminosity_distance(self, 
+                           z: HyperMorphicNumber,
+                           H0: HyperMorphicNumber,
+                           omega_m: HyperMorphicNumber,
+                           omega_lambda: HyperMorphicNumber,
+                           omega_k: HyperMorphicNumber,
+                           w0: HyperMorphicNumber = None,
+                           wa: HyperMorphicNumber = None,
+                           steps: int = 1000) -> HyperMorphicNumber:
+        """
+        Compute the luminosity distance to a source at redshift z.
+        
+        Args:
+            z: Redshift
+            H0: Hubble parameter today
+            omega_m: Matter density parameter
+            omega_lambda: Dark energy density parameter
+            omega_k: Curvature density parameter
+            w0: Dark energy equation of state parameter at z=0 (default: -1)
+            wa: Dark energy equation of state evolution parameter (default: 0)
+            steps: Number of integration steps
+            
+        Returns:
+            Luminosity distance d_L
+        """
+        # Set default w0 and wa if not provided
+        if w0 is None:
+            w0 = HyperMorphicNumber(-1, self.space.phi, self.space.psi, 
+                                   self.space.epsilon, self.space.dim)
+        
+        if wa is None:
+            wa = HyperMorphicNumber(self.space.epsilon, self.space.phi, 
+                                   self.space.psi, self.space.epsilon, 
+                                   self.space.dim)
+        
+        # Create z_array for integration
+        dz = z / steps
+        z_array = []
+        
+        z_val = HyperMorphicNumber(self.space.epsilon, self.space.phi, 
+                                  self.space.psi, self.space.epsilon, 
+                                  self.space.dim)
+        
+        for _ in range(steps+1):
+            z_array.append(z_val)
+            z_val = z_val + dz
+        
+        # Compute integral of 1/E(z)
+        integral = HyperMorphicNumber(self.space.epsilon, self.space.phi, 
+                                     self.space.psi, self.space.epsilon, 
+                                     self.space.dim)
+        
+        for i in range(steps):
+            # Midpoint
+            z_mid = z_array[i] + dz/2
+            
+            # Compute E(z) = H(z)/H0
+            one = HyperMorphicNumber(1, self.space.phi, self.space.psi, 
+                                    self.space.epsilon, self.space.dim)
+            
+            # Compute dark energy density parameter at z_mid
+            w_z = self.dark_energy_eos(z_mid, w0, wa)
+            omega_de_z = omega_lambda * (one + z_mid)**(3 * (one + w_z))
+            
+            # Compute E(z)
+            E_z = (omega_m * (one + z_mid)**3 + omega_k * (one + z_mid)**2 + omega_de_z)**0.5
+            
+            # Add to integral
+            integral = integral + dz / E_z
+        
+        # Compute comoving distance
+        d_c = integral / (H0.value.real)  # Convert to non-HyperMorphic for standard distance calc
+        
+        # Compute luminosity distance
+        d_L = (one + z) * d_c
+        
+        return d_L
+
+################################################################################
+# Visualization Tools
+################################################################################
+
+# visualization/hypermorphic_plotter.py
+"""
+Tools for visualizing HyperMorphic functions and objects.
+"""
+
+class HyperMorphicPlotter:
+    """
+    Plotting tools for HyperMorphic Calculus.
+    """
+    
+    def __init__(self, 
+                 space: HyperMorphicSpace,
+                 figsize: Tuple[int, int] = (10, 6)):
+        """
+        Initialize the HyperMorphic plotter.
+        
+        Args:
+            space: HyperMorphic space
+            figsize: Figure size
+        """
+        self.space = space
+        self.figsize = figsize
+    
+    def plot_function_1d(self, 
+                        func: Callable[[HyperMorphicNumber], HyperMorphicNumber],
+                        x_min: float,
+                        x_max: float,
+                        points: int = 100,
+                        title: str = "HyperMorphic Function",
+                        xlabel: str = "x",
+                        ylabel: str = "f(x)",
+                        show_real: bool = True,
+                        show_imag: bool = True) -> None:
+        """
+        Plot a 1D HyperMorphic function.
+        
+        Args:
+            func: Function to plot
+            x_min: Minimum x value
+            x_max: Maximum x value
+            points: Number of points
+            title: Plot title
+            xlabel: x-axis label
+            ylabel: y-axis label
+            show_real: Whether to show real part
+            show_imag: Whether to show imaginary part
+        """
+        # Create x values
+        x_values = np.linspace(x_min, x_max, points)
+        
+        # Compute function values
+        real_values = []
+        imag_values = []
+        
+        for x in x_values:
+            x_hm = HyperMorphicNumber(x, self.space.phi, self.space.psi, 
+                                     self.space.epsilon, self.space.dim)
+            f_x = func(x_hm)
+            real_values.append(f_x.value.real)
+            imag_values.append(f_x.value.imag)
+        
+        # Create plot
+        plt.figure(figsize=self.figsize)
+        
+        if show_real:
+            plt.plot(x_values, real_values, 'b-', label='Real Part')
+        
+        if show_imag:
+            plt.plot(x_values, imag_values, 'r-', label='Imaginary Part')
+        
+        plt.title(title)
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
+        plt.grid(True)
+        
+        if show_real or show_imag:
+            plt.legend()
+        
+        plt.show()
+    
+    def plot_function_2d(self, 
+                        func: Callable[[HyperMorphicNumber, HyperMorphicNumber], HyperMorphicNumber],
+                        x_min: float,
+                        x_max: float,
+                        y_min: float,
+                        y_max: float,
+                        points: int = 50,
+                        title: str = "HyperMorphic Function",
+                        xlabel: str = "x",
+                        ylabel: str = "y",
+                        zlabel: str = "f(x,y)",
+                        plot_type: str = "surface",
+                        show_real: bool = True) -> None:
+        """
+        Plot a 2D HyperMorphic function.
+        
+        Args:
+            func: Function to plot
+            x_min: Minimum x value
+            x_max: Maximum x value
+            y_min: Minimum y value
+            y_max: Maximum y value
+            points: Number of points in each dimension
+            title: Plot title
+            xlabel: x-axis label
+            ylabel: y-axis label
+            zlabel: z-axis label
+            plot_type: 'surface' or 'contour'
+            show_real: Whether to show real part (if False, shows imaginary part)
+        """
+        # Create x and y meshgrid
+        x_values = np.linspace(x_min, x_max, points)
+        y_values = np.linspace(y_min, y_max, points)
+        X, Y = np.meshgrid(x_values, y_values)
+        
+        # Compute function values
+        Z_real = np.zeros((points, points))
+        Z_imag = np.zeros((points, points))
+        
+        for i in range(points):
+            for j in range(points):
+                x_hm = HyperMorphicNumber(X[i, j], self.space.phi, self.space.psi, 
+                                         self.space.epsilon, self.space.dim)
+                y_hm = HyperMorphicNumber(Y[i, j], self.space.phi, self.space.psi, 
+                                         self.space.epsilon, self.space.dim)
+                f_xy = func(x_hm, y_hm)
+                Z_real[i, j] = f_xy.value.real
+                Z_imag[i, j] = f_xy.value.imag
+        
+        # Create plot
+        fig = plt.figure(figsize=self.figsize)
+        
+        if plot_type == 'surface':
+            ax = fig.add_subplot(111, projection='3d')
+            if show_real:
+                ax.plot_surface(X, Y, Z_real, cmap='viridis', alpha=0.8)
+                part_label = 'Real Part'
+            else:
+                ax.plot_surface(X, Y, Z_imag, cmap='plasma', alpha=0.8)
+                part_label = 'Imaginary Part'
+            
+            ax.set_xlabel(xlabel)
+            ax.set_ylabel(ylabel)
+            ax.set_zlabel(zlabel)
+            plt.title(f"{title} ({part_label})")
+        
+        elif plot_type == 'contour':
+            if show_real:
+                plt.contourf(X, Y, Z_real, cmap='viridis', levels=50)
+                plt.colorbar(label='Real Part')
+            else:
+                plt.contourf(X, Y, Z_imag, cmap='plasma', levels=50)
+                plt.colorbar(label='Imaginary Part')
+            
+            plt.xlabel(xlabel)
+            plt.ylabel(ylabel)
+            plt.title(f"{title} ({'Real' if show_real else 'Imaginary'} Part)")
+            plt.grid(True)
+        
+        plt.show()
+    
+    def plot_complex_function(self, 
+                             func: Callable[[HyperMorphicNumber], HyperMorphicNumber],
+                             re_min: float,
+                             re_max: float,
+                             im_min: float,
+                             im_max: float,
+                             points: int = 20,
+                             title: str = "HyperMorphic Complex Function",
+                             plot_type: str = "domain_coloring") -> None:
+        """
+        Plot a complex HyperMorphic function.
+        
+        Args:
+            func: Function to plot
+            re_min: Minimum real value
+            re_max: Maximum real value
+            im_min: Minimum imaginary value
+            im_max: Maximum imaginary value
+            points: Number of points in each dimension
+            title: Plot title
+            plot_type: 'domain_coloring', 'vector_field', or 'phase_portrait'
+        """
+        # Create complex meshgrid
+        re_values = np.linspace(re_min, re_max, points)
+        im_values = np.linspace(im_min, im_max, points)
+        X, Y = np.meshgrid(re_values, im_values)
+        
+        # Compute function values
+        U = np.zeros((points, points))
+        V = np.zeros((points, points))
+        Abs = np.zeros((points, points))
+        Phase = np.zeros((points, points))
+        
+        for i in range(points):
+            for j in range(points):
+                z = complex(X[i, j], Y[i, j])
+                z_hm = HyperMorphicNumber(z, self.space.phi, self.space.psi, 
+                                         self.space.epsilon, self.space.dim)
+                f_z = func(z_hm)
+                U[i, j] = f_z.value.real
+                V[i, j] = f_z.value.imag
+                Abs[i, j] = abs(f_z.value)
+                Phase[i, j] = np.angle(f_z.value)
+        
+        # Create plot
+        plt.figure(figsize=self.figsize)
+        
+        if plot_type == 'domain_coloring':
+            # Domain coloring plot
+            hsv = np.zeros((points, points, 3))
+            hsv[:, :, 0] = (Phase + np.pi) / (2 * np.pi)  # Hue from phase
+            hsv[:, :, 1] = 0.8  # Saturation constant
+            hsv[:, :, 2] = 1.0 - 1.0 / (1.0 + 0.3 * Abs)  # Value from magnitude
+            
+            rgb = matplotlib.colors.hsv_to_rgb(hsv)
+            plt.imshow(rgb, extent=[re_min, re_max, im_min, im_max], origin='lower', aspect='equal')
+            
+            plt.colorbar(label='Phase')
+            plt.title(f"{title} (Domain Coloring)")
+        
+        elif plot_type == 'vector_field':
+            # Vector field plot
+            plt.quiver(X, Y, U, V, Abs, cmap='jet', pivot='mid', angles='xy', scale=20)
+            plt.colorbar(label='Magnitude')
+            plt.title(f"{title} (Vector Field)")
+        
+        elif plot_type == 'phase_portrait':
+            # Phase portrait plot
+            plt.contourf(X, Y, Phase, cmap='hsv', levels=50)
+            plt.colorbar(label='Phase')
+            plt.contour(X, Y, Abs, colors='black', alpha=0.5)
+            plt.title(f"{title} (Phase Portrait)")
+        
+        plt.xlabel('Re(z)')
+        plt.ylabel('Im(z)')
+        plt.grid(True)
+        plt.show()
+    
+    def plot_zero_free_comparison(self, 
+                                 func: Callable[[float], float],
+                                 hm_func: Callable[[HyperMorphicNumber], HyperMorphicNumber],
+                                 x_min: float,
+                                 x_max: float,
+                                 points: int = 100,
+                                 title: str = "Zero-Free Comparison") -> None:
+        """
+        Compare a standard function with its HyperMorphic zero-free counterpart.
+        
+        Args:
+            func: Standard function
+            hm_func: HyperMorphic function
+            x_min: Minimum x value
+            x_max: Maximum x value
+            points: Number of points
+            title: Plot title
+        """
+        # Create x values
+        x_values = np.linspace(x_min, x_max, points)
+        
+        # Compute function values
+        std_values = []
+        hm_values = []
+        
+        for x in x_values:
+            std_values.append(func(x))
+            
+            x_hm = HyperMorphicNumber(x, self.space.phi, self.space.psi, 
+                                     self.space.epsilon, self.space.dim)
+            hm_values.append(hm_func(x_hm).value.real)
+        
+        # Create plot
+        plt.figure(figsize=self.figsize)
+        plt.plot(x_values, std_values, 'b-', label='Standard Function')
+        plt.plot(x_values, hm_values, 'r-', label='HyperMorphic Function')
+        
+        plt.title(title)
+        plt.xlabel('x')
+        plt.ylabel('f(x)')
+        plt.grid(True)
+        plt.legend()
+        
+        # Add box to highlight zero regions
+        plt.axhspan(-self.space.epsilon.real*10, self.space.epsilon.real*10, 
+                   color='gray', alpha=0.2, label=f'ε_ᵩ Region (±{self.space.epsilon.real*10})')
+        
+        plt.show()
+    
+    def plot_dynamic_functions(self, 
+                              phi_func: Callable[[int], int],
+                              psi_func: Callable[[int], int],
+                              dim_min: int = 1,
+                              dim_max: int = 50) -> None:
+        """
+        Plot the dynamic base and modulus functions.
+        
+        Args:
+            phi_func: Dynamic base function
+            psi_func: Dynamic modulus function
+            dim_min: Minimum dimension
+            dim_max: Maximum dimension
+        """
+        # Create dimension values
+        dims = range(dim_min, dim_max+1)
+        
+        # Compute function values
+        phi_values = [phi_func(dim) for dim in dims]
+        psi_values = [psi_func(dim) for dim in dims]
+        
+        # Create plot
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=self.figsize)
+        
+        # Plot phi
+        ax1.plot(dims, phi_values, 'b-', marker='o')
+        ax1.set_title('Dynamic Base Function Φ')
+        ax1.set_xlabel('Dimension')
+        ax1.set_ylabel('Φ(n)')
+        ax1.grid(True)
+        
+        # Plot psi
+        ax2.plot(dims, psi_values, 'r-', marker='o')
+        ax2.set_title('Dynamic Modulus Function Ψ')
+        ax2.set_xlabel('Dimension')
+        ax2.set_ylabel('Ψ(n)')
+        ax2.grid(True)
+        
+        plt.tight_layout()
+        plt.show()
+
+################################################################################
+# Philosophical Implications of HyperMorphic Mathematics
+################################################################################
+
+# philosophy/hypermorphic_philosophy.py
+"""
+Exploration of the philosophical implications of HyperMorphic Calculus
+as described in Section 7.
+"""
+
+class HyperMorphicPhilosophy:
+    """
+    Philosophical framework based on HyperMorphic Calculus.
+    """
+    
+    def __init__(self, space: HyperMorphicSpace):
+        """
+        Initialize HyperMorphic philosophy.
+        
+        Args:
+            space: HyperMorphic space
+        """
+        self.space = space
+    
+    def hypermorphic_universal(self, name: str, essence: Callable) -> Dict:
+        """
+        Create a HyperMorphic universal.
+        This implements the concept from Theorem 7.1.2.
+        
+        Args:
+            name: Name of the universal
+            essence: Function capturing its essential nature
+            
+        Returns:
+            Universal object
+        """
+        return {
+            "name": name,
+            "essence": essence,
+            "type": "HyperMorphic Universal",
+            "instances": []
+        }
+    
+    def instantiate(self, universal: Dict, properties: Dict) -> Dict:
+        """
+        Instantiate a HyperMorphic universal in a particular.
+        
+        Args:
+            universal: HyperMorphic universal
+            properties: Particular properties
+            
+        Returns:
+            Particular instance
+        """
+        if universal["type"] != "HyperMorphic Universal":
+            raise ValueError("Object is not a HyperMorphic Universal")
+        
+        # Create instance
+        instance = {
+            "universal": universal["name"],
+            "properties": properties,
+            "type": "HyperMorphic Particular"
+        }
+        
+        # Add to universal's instances
+        universal["instances"].append(instance)
+        
+        return instance
+    
+    def hypermorphic_knowledge(self, 
+                              proposition: str,
+                              justification: Callable[[HyperMorphicNumber], HyperMorphicNumber],
+                              truth_value: HyperMorphicNumber) -> Dict:
+        """
+        Create HyperMorphic knowledge.
+        This implements the concept from Definition 7.2.1.
+        
+        Args:
+            proposition: Proposition statement
+            justification: Justification function
+            truth_value: HyperMorphic truth value
+            
+        Returns:
+            Knowledge object
+        """
+        return {
+            "proposition": proposition,
+            "justification": justification,
+            "truth_value": truth_value,
+            "type": "HyperMorphic Knowledge"
+        }
+    
+    def resolve_gettier(self, 
+                       classic_case: Dict,
+                       context: HyperMorphicNumber) -> Dict:
+        """
+        Resolve a Gettier problem using HyperMorphic epistemology.
+        This implements the approach from Theorem 7.2.2.
+        
+        Args:
+            classic_case: Description of a classic Gettier case
+            context: HyperMorphic context
+            
+        Returns:
+            Resolution
+        """
+        # Apply dynamic justification
+        dynamic_justification = classic_case["justification"](context)
+        
+        # Apply truth evaluation
+        dynamic_truth = classic_case["truth"](context)
+        
+        # Determine if knowledge in HyperMorphic sense
+        is_knowledge = (dynamic_justification.value.real > 0.5 and 
+                        dynamic_truth.value.real > 0.5)
+        
+        return {
+            "original_case": classic_case,
+            "context": context,
+            "dynamic_justification": dynamic_justification,
+            "dynamic_truth": dynamic_truth,
+            "is_knowledge": is_knowledge,
+            "resolution": "The dynamic nature of HyperMorphic justification adapts to the context, preventing the formation of 'lucky' true beliefs."
+        }
+    
+    def utility(self, 
+               weights: List[HyperMorphicNumber],
+               utilities: List[HyperMorphicNumber]) -> HyperMorphicNumber:
+        """
+        Compute HyperMorphic utility.
+        This implements the concept from Axiom 7.3.1.
+        
+        Args:
+            weights: HyperMorphic weights
+            utilities: Individual utilities
+            
+        Returns:
+            Overall utility
+        """
+        if len(weights) != len(utilities):
+            raise ValueError("Weights and utilities must have the same length")
+        
+        # Initialize sum
+        util_sum = HyperMorphicNumber(self.space.epsilon, self.space.phi, 
+                                     self.space.psi, self.space.epsilon, 
+                                     self.space.dim)
+        
+        # Compute weighted sum
+        for i in range(len(weights)):
+            util_sum = util_sum + weights[i] * utilities[i]
+        
+        return util_sum
+    
+    def moral_relativity(self, 
+                        action: str,
+                        contexts: List[Tuple[Callable[[int], int], Callable[[int], int]]]) -> List[Dict]:
+        """
+        Demonstrate HyperMorphic moral relativity.
+        This implements the concept from Theorem 7.3.2.
+        
+        Args:
+            action: Description of an action
+            contexts: List of (phi, psi) function pairs
+            
+        Returns:
+            Evaluations in different contexts
+        """
+        results = []
+        
+        for i, (phi, psi) in enumerate(contexts):
+            # Create space with these functions
+            context_space = HyperMorphicSpace(10, phi, psi, self.space.epsilon)
+            
+            # Create utility function
+            def util_func(x):
+                x_hm = HyperMorphicNumber(x, phi, psi, self.space.epsilon, 10)
+                # Example utility function
+                return x_hm.sin()
+            
+            # Evaluate at a reference point
+            x_ref = 1.0
+            utility = util_func(x_ref)
+            
+            # Add to results
+            results.append({
+                "context_id": i,
+                "phi": phi.__name__,
+                "psi": psi.__name__,
+                "action": action,
+                "utility": utility,
+                "moral_value": "Good" if utility.value.real > 0 else "Bad"
+            })
+        
+        return results
+
+################################################################################
+# Metaphysical Implications of HyperMorphic Mathematics
+################################################################################
+
+# philosophy/hypermorphic_metaphysics.py
+"""
+Exploration of the metaphysical implications of HyperMorphic Calculus
+as described in Section 8.
+"""
+
+class HyperMorphicMetaphysics:
+    """
+    Metaphysical framework based on HyperMorphic Calculus.
+    """
+    
+    def __init__(self, space: HyperMorphicSpace):
+        """
+        Initialize HyperMorphic metaphysics.
+        
+        Args:
+            space: HyperMorphic space
+        """
+        self.space = space
+    
+    def multiverse_universe(self, 
+                           phi: Callable[[int], int],
+                           psi: Callable[[int], int],
+                           properties: Dict) -> Dict:
+        """
+        Create a universe in the HyperMorphic multiverse.
+        This implements the concept from Postulate 8.1.1.
+        
+        Args:
+            phi: Dynamic base function for this universe
+            psi: Dynamic modulus function for this universe
+            properties: Universe properties
+            
+        Returns:
+            Universe object
+        """
+        return {
+            "phi": phi.__name__,
+            "psi": psi.__name__,
+            "properties": properties,
+            "type": "HyperMorphic Universe"
+        }
+    
+    def tunneling_probability(self, 
+                             U1: Dict,
+                             U2: Dict,
+                             x: HyperMorphicNumber) -> HyperMorphicNumber:
+        """
+        Compute the probability of tunneling between universes.
+        This implements the concept from Theorem 8.1.2.
+        
+        Args:
+            U1: Source universe
+            U2: Target universe
+            x: HyperMorphic state
+            
+        Returns:
+            Tunneling probability
+        """
+        if U1["type"] != "HyperMorphic Universe" or U2["type"] != "HyperMorphic Universe":
+            raise ValueError("Objects must be HyperMorphic Universes")
+        
+        # Get phi and psi functions
+        phi1_name = U1["phi"]
+        psi1_name = U1["psi"]
+        phi2_name = U2["phi"]
+        psi2_name = U2["psi"]
+        
+        # Compute action between universes
+        # This is a placeholder calculation
+        phi_diff = abs(ord(phi1_name[0]) - ord(phi2_name[0]))
+        psi_diff = abs(ord(psi1_name[0]) - ord(psi2_name[0]))
+        
+        action = HyperMorphicNumber(phi_diff + psi_diff, self.space.phi, 
+                                   self.space.psi, self.space.epsilon, 
+                                   self.space.dim)
+        
+        # Compute tunneling probability: P(U_i → U_j) = [exp(-S_ᵩ(Φ_i, Ψ_i, Φ_j, Ψ_j))]_Φ
+        neg_action = -action
+        probability = neg_action.exp()
+        
+        return probability
+    
+    def qualia_point(self, 
+                    experiences: List[HyperMorphicNumber]) -> List[HyperMorphicNumber]:
+        """
+        Represent a point in the HyperMorphic Qualia Space.
+        This implements the concept from Definition 8.2.1.
+        
+        Args:
+            experiences: List of HyperMorphic numbers representing qualia dimensions
+            
+        Returns:
+            Point in qualia space
+        """
+        return experiences
+    
+    def consciousness_trajectory(self, 
+                               initial_state: List[HyperMorphicNumber],
+                               time_steps: int) -> List[List[HyperMorphicNumber]]:
+        """
+        Simulate a consciousness trajectory in qualia space.
+        This relates to Conjecture 8.2.2.
+        
+        Args:
+            initial_state: Initial qualia state
+            time_steps: Number of time steps
+            
+        Returns:
+            Trajectory in qualia space
+        """
+        trajectory = [initial_state]
+        current_state = initial_state
+        
+        for _ in range(time_steps):
+            # Evolve state (simple random walk for illustration)
+            next_state = []
+            
+            for q in current_state:
+                # Add small random perturbation
+                h = HyperMorphicNumber(np.random.normal(0, 0.1), self.space.phi, 
+                                      self.space.psi, self.space.epsilon, 
+                                      self.space.dim)
+                next_state.append(q + h)
+            
+            trajectory.append(next_state)
+            current_state = next_state
+        
+        return trajectory
+    
+    def b_theory_slice(self, 
+                      space_time: List[List[HyperMorphicNumber]],
+                      t: int) -> List[HyperMorphicNumber]:
+        """
+        Extract a time slice from a HyperMorphic block universe.
+        This implements the concept from Theorem 8.3.1.
+        
+        Args:
+            space_time: Space-time manifold
+            t: Time index
+            
+        Returns:
+            Spatial slice at time t
+        """
+        if t < 0 or t >= len(space_time):
+            raise ValueError(f"Time index {t} out of range [0, {len(space_time)-1}]")
+        
+        return space_time[t]
+    
+    def free_will_decision(self, 
+                          agent: Dict,
+                          options: List[str],
+                          context: HyperMorphicNumber) -> str:
+        """
+        Simulate a HyperMorphic compatibilist free will decision.
+        This implements the concept from Definition 8.4.1 and Theorem 8.4.2.
+        
+        Args:
+            agent: Agent description
+            options: Available options
+            context: HyperMorphic context
+            
+        Returns:
+            Chosen option
+        """
+        # Get agent's decision function
+        decision_func = agent["decision_function"]
+        
+        # Apply decision function in context
+        decision_value = decision_func(context)
+        
+        # Map to options
+        index = int(abs(decision_value.value.real * 100)) % len(options)
+        
+        return options[index]
+
+################################################################################
+# Examples and Usage
+################################################################################
+
+# examples/basic_operations.py
+"""
+Example: Basic operations with HyperMorphic numbers.
+"""
+
+def basic_operations_example():
+    """
+    Demonstrate basic operations with HyperMorphic numbers.
+    """
+    print("HyperMorphic Calculus: Basic Operations Example")
+    print("=" * 50)
+    
+    # Create HyperMorphic numbers with different dynamic functions
+    print("Creating HyperMorphic numbers...")
+    
+    a = HyperMorphicNumber(1, linear_phi, constant_psi)
+    b = HyperMorphicNumber(2, linear_phi, constant_psi)
+    c = HyperMorphicNumber(3 + 4j, exponential_phi, prime_psi)
+    
+    print(f"a = {a}")
+    print(f"b = {b}")
+    print(f"c = {c}")
+    
+    print("\nBasic arithmetic operations:")
+    print(f"a + b = {a + b}")
+    print(f"a - b = {a - b}")
+    print(f"a * b = {a * b}")
+    print(f"a / b = {a / b}")
+    print(f"a ** b = {a ** b}")
+    
+    print("\nHolomorphic functions:")
+    print(f"exp(a) = {a.exp()}")
+    print(f"log(a) = {a.log()}")
+    print(f"sin(a) = {a.sin()}")
+    print(f"cos(a) = {a.cos()}")
+    print(f"tan(a) = {a.tan()}")
+    
+    print("\nOperation with complex number:")
+    print(f"c + a = {c + a}")
+    print(f"c * a = {c * a}")
+    print(f"exp(c) = {c.exp()}")
+    
+    print("\nZero-free approach demonstration:")
+    try:
+        # Try to create a zero HyperMorphic number
+        zero = HyperMorphicNumber(0, linear_phi, constant_psi)
+        print(f"Attempt to create zero: {zero}")
+        
+        # Try division by a very small number
+        epsilon = HyperMorphicNumber(1e-100, linear_phi, constant_psi)
+        print(f"Very small number: {epsilon}")
+        
+        try:
+            result = a / epsilon
+            print(f"Division by very small: {result}")
+        except ValueError as e:
+            print(f"Division error: {e}")
+    except Exception as e:
+        print(f"Error: {e}")
+    
+    print("\nDifferent dynamic functions:")
+    a_exp = HyperMorphicNumber(1, exponential_phi, constant_psi)
+    a_quad = HyperMorphicNumber(1, quadratic_phi, constant_psi)
+    a_prime = HyperMorphicNumber(1, prime_phi, constant_psi)
+    
+    print(f"a with exponential phi: {a_exp}")
+    print(f"a with quadratic phi: {a_quad}")
+    print(f"a with prime phi: {a_prime}")
+    
+    print(f"a_exp + a_quad = {a_exp + a_quad}")
+
+# examples/calculus_examples.py
+"""
+Example: HyperMorphic calculus operations.
+"""
+
+def calculus_examples():
+    """
+    Demonstrate HyperMorphic differentiation and integration.
+    """
+    print("HyperMorphic Calculus: Differentiation and Integration Examples")
+    print("=" * 50)
+    
+    # Create HyperMorphic space
+    space = HyperMorphicSpace(10, linear_phi, constant_psi)
+    
+    # Create derivative and integral instances
+    print("Setting up calculus operators...")
+    derivative = HyperMorphicDerivative(space)
+    integral = HyperMorphicIntegral(space)
+    
+    # Define a test function: f(x) = x^2
+    def f(x):
+        if isinstance(x, list):
+            # Vector input
+            return [xi ** 2 for xi in x]
+        else:
+            # Scalar input
+            return x ** 2
+    
+    # Define a point
+    x = HyperMorphicNumber(2, linear_phi, constant_psi)
+    
+    # Compute derivative at x
+    print("\nDifferentiation:")
+    
+    # Create a scalar x for the scalar version
+    x_scalar = [x]
+    
+    # Compute directional derivative (should be 2*x = 4)
+    dx = [HyperMorphicNumber(1, linear_phi, constant_psi)]
+    df_dx = derivative.compute(f, x_scalar, dx)
+    
+    print(f"f(x) = x^2 at x = {x}")
+    print(f"f'(x) (analytical) = 2x = {2*x}")
+    print(f"f'(x) (numerical) = {df_dx[0]}")
+    
+    # Compute integral of f from 0 to 2
+    print("\nIntegration:")
+    
+    a = HyperMorphicNumber(0, linear_phi, constant_psi)
+    b = HyperMorphicNumber(2, linear_phi, constant_psi)
+    
+    def scalar_f(x_scalar):
+        return x_scalar ** 2
+    
+    integral_f = integral.definite_integral(scalar_f, a, b)
+    
+    print(f"∫f(x)dx from {a} to {b}")
+    print(f"∫x^2 dx from 0 to 2 (analytical) = [x^3/3]_0^2 = 8/3 ≈ {8/3}")
+    print(f"∫x^2 dx from 0 to 2 (numerical) = {integral_f}")
+    
+    # Example of product rule
+    print("\nProduct Rule:")
+    
+    def g(x):
+        if isinstance(x, list):
+            # Vector input
+            return [xi.sin() for xi in x]
+        else:
+            # Scalar input
+            return x.sin()
+    
+    def h(x):
+        if isinstance(x, list):
+            # Vector input
+            return [xi.exp() for xi in x]
+        else:
+            # Scalar input
+            return x.exp()
+    
+    # Compute product rule
+    dg_dx = derivative.compute(g, x_scalar, dx)
+    dh_dx = derivative.compute(h, x_scalar, dx)
+    
+    print(f"g(x) = sin(x), h(x) = exp(x) at x = {x}")
+    print(f"g'(x) = cos(x) = {x.cos()}")
+    print(f"h'(x) = exp(x) = {x.exp()}")
+    print(f"(g·h)'(x) = g'(x)·h(x) + g(x)·h'(x)")
+    print(f"         = {x.cos()}·{x.exp()} + {x.sin()}·{x.exp()}")
+    print(f"         = {x.cos() * x.exp() + x.sin() * x.exp()}")
+    
+    # Example of chain rule
+    print("\nChain Rule:")
+    
+    def f_of_g(x):
+        if isinstance(x, list):
+            # Vector input
+            return [f([g_x])[0] for g_x in x]
+        else:
+            # Scalar input
+            return f([g(x)])[0]
+    
+    df_of_g_dx = derivative.compute(f_of_g, x_scalar, dx)
+    
+    print(f"f(g(x)) = (sin(x))^2 at x = {x}")
+    print(f"(f∘g)'(x) = f'(g(x))·g'(x) = 2·sin(x)·cos(x)")
+    print(f"          = 2·{x.sin()}·{x.cos()} = {2 * x.sin() * x.cos()}")
+    print(f"Numerical: {df_of_g_dx[0]}")
+
+# examples/quantum_mechanics_example.py
+"""
+Example: HyperMorphic quantum mechanics.
+"""
+
+def quantum_mechanics_example():
+    """
+    Demonstrate HyperMorphic quantum mechanics.
+    """
+    print("HyperMorphic Calculus: Quantum Mechanics Example")
+    print("=" * 50)
+    
+    # Create HyperMorphic space
+    space = HyperMorphicSpace(10, linear_phi, constant_psi)
+    
+    # Create HyperMorphic constants
+    hbar = HyperMorphicNumber(1.0, linear_phi, constant_psi)  # Planck constant (normalized)
+    m = HyperMorphicNumber(1.0, linear_phi, constant_psi)    # Mass
+    omega = HyperMorphicNumber(1.0, linear_phi, constant_psi)  # Frequency
+    
+    # Create quantum mechanics instance
+    qm = HyperMorphicQuantumMechanics(space, hbar)
+    
+    # Create harmonic oscillator hamiltonian
+    hamiltonian = qm.harmonic_oscillator_hamiltonian(m, omega)
+    
+    # Print energy eigenvalues
+    print("Harmonic Oscillator Energy Eigenvalues:")
+    eigenvalues = qm.energy_eigenvalues(m, omega, 5)
+    
+    for n, E_n in enumerate(eigenvalues):
+        print(f"E_{n} = {E_n}")
+    
+    # Compute and print Hermite functions (eigenfunctions)
+    print("\nHermite Functions at x = 0:")
+    
+    x = HyperMorphicNumber(0, linear_phi, constant_psi)
+    
+    for n in range(6):
+        psi_n = qm.hermite_function(n, m, omega, x)
+        print(f"ψ_{n}(0) = {psi_n}")
+    
+    # Time evolution example
+    print("\nTime Evolution Example:")
+    
+    # Create initial wavefunction (ground state)
+    def psi_0(x):
+        return qm.hermite_function(0, m, omega, x)
+    
+    # Create time parameters
+    x_fixed = HyperMorphicNumber(0.5, linear_phi, constant_psi)
+    t_final = HyperMorphicNumber(2.0, linear_phi, constant_psi)
+    dt = HyperMorphicNumber(0.1, linear_phi, constant_psi)
+    
+    # Perform time evolution
+    psi_history = qm.time_evolution(psi_0, hamiltonian, x_fixed, t_final, dt, 20)
+    
+    print(f"Time evolution of ψ(x, t) at x = {x_fixed}:")
+    for i, psi_t in enumerate(psi_history[:5]):
+        print(f"ψ({x_fixed}, t={i*0.1}) = {psi_t}")
+    print("...")
+
+# examples/fluid_dynamics_example.py
+"""
+Example: HyperMorphic fluid dynamics.
+"""
+
+def fluid_dynamics_example():
+    """
+    Demonstrate HyperMorphic fluid dynamics.
+    """
+    print("HyperMorphic Calculus: Fluid Dynamics Example")
+    print("=" * 50)
+    
+    # Create HyperMorphic space
+    space = HyperMorphicSpace(10, linear_phi, constant_psi)
+    
+    # Create HyperMorphic constants
+    rho = HyperMorphicNumber(1.0, linear_phi, constant_psi)  # Density
+    nu = HyperMorphicNumber(0.1, linear_phi, constant_psi)   # Kinematic viscosity
+    
+    # Create fluid dynamics instance
+    fd = HyperMorphicFluidDynamics(space, rho, nu)
+    
+    # Create Kolmogorov constant and energy dissipation rate
+    C = HyperMorphicNumber(1.5, linear_phi, constant_psi)
+    epsilon = HyperMorphicNumber(0.1, linear_phi, constant_psi)
+    
+    # Compute energy spectrum for different wave numbers
+    print("Energy Spectrum in the Inertial Range:")
+    
+    for k_val in [0.1, 0.5, 1.0, 5.0, 10.0]:
+        k = HyperMorphicNumber(k_val, linear_phi, constant_psi)
+        E_k = fd.energy_cascade(k, epsilon, C)
+        print(f"E({k_val}) = {E_k}")
+    
+    # Example of computing Navier-Stokes equations
+    print("\nNavier-Stokes Example:")
+    
+    # Define velocity field (simple shear flow in 2D)
+    def v_x(pos, t):
+        return pos[1]  # u = y
+    
+    def v_y(pos, t):
+        return HyperMorphicNumber(0, linear_phi, constant_psi)  # v = 0
+    
+    # Define pressure field (constant pressure)
+    def p(pos, t):
+        return HyperMorphicNumber(1, linear_phi, constant_psi)
+    
+    # Define position and time
+    x = [HyperMorphicNumber(1, linear_phi, constant_psi),
+         HyperMorphicNumber(2, linear_phi, constant_psi)]
+    
+    t = HyperMorphicNumber(0, linear_phi, constant_psi)
+    dt = HyperMorphicNumber(0.1, linear_phi, constant_psi)
+    
+    # Compute Navier-Stokes
+    dv_dt, div_v = fd.navier_stokes([v_x, v_y], p, x, t, dt)
+    
+    print(f"Position: [{x[0]}, {x[1]}]")
+    print(f"du/dt = {dv_dt[0]}")
+    print(f"dv/dt = {dv_dt[1]}")
+    print(f"∇·v = {div_v}")
+
+# examples/finance_example.py
+"""
+Example: HyperMorphic financial mathematics.
+"""
+
+def finance_example():
+    """
+    Demonstrate HyperMorphic financial mathematics.
+    """
+    print("HyperMorphic Calculus: Financial Mathematics Example")
+    print("=" * 50)
+    
+    # Create HyperMorphic space
+    space = HyperMorphicSpace(10, linear_phi, constant_psi)
+    
+    # Create finance instance
+    finance = HyperMorphicFinance(space)
+    
+    # Create financial parameters
+    S = HyperMorphicNumber(100, linear_phi, constant_psi)  # Stock price
+    K = HyperMorphicNumber(100, linear_phi, constant_psi)  # Strike price
+    r = HyperMorphicNumber(0.05, linear_phi, constant_psi)  # Risk-free rate
+    sigma = HyperMorphicNumber(0.2, linear_phi, constant_psi)  # Volatility
+    T = HyperMorphicNumber(1, linear_phi, constant_psi)  # Time to maturity
+    
+    # Compute option prices
+    call_price = finance.option_price(S, K, r, sigma, T, 'call')
+    put_price = finance.option_price(S, K, r, sigma, T, 'put')
+    
+    print("Black-Scholes Option Pricing:")
+    print(f"Stock Price (S) = {S}")
+    print(f"Strike Price (K) = {K}")
+    print(f"Risk-free Rate (r) = {r}")
+    print(f"Volatility (σ) = {sigma}")
+    print(f"Time to Maturity (T) = {T}")
+    print(f"Call Option Price = {call_price}")
+    print(f"Put Option Price = {put_price}")
+    
+    # Example of computing implied volatility
+    print("\nImplied Volatility Example:")
+    
+    # Create a market price
+    market_call = HyperMorphicNumber(10, linear_phi, constant_psi)
+    
+    # Compute implied volatility
+    implied_vol = finance.implied_volatility(market_call, S, K, r, T)
+    
+    print(f"Market Call Price = {market_call}")
+    print(f"Implied Volatility = {implied_vol}")
+    
+    # Check price at implied volatility
+    check_price = finance.option_price(S, K, r, implied_vol, T, 'call')
+    print(f"Option Price at Implied Volatility = {check_price}")
+
+# examples/machine_learning_example.py
+"""
+Example: HyperMorphic machine learning.
+"""
+
+def machine_learning_example():
+    """
+    Demonstrate HyperMorphic machine learning.
+    """
+    print("HyperMorphic Calculus: Machine Learning Example")
+    print("=" * 50)
+    
+    # Create HyperMorphic space
+    space = HyperMorphicSpace(10, linear_phi, constant_psi)
+    
+    # Create ML instance
+    ml = HyperMorphicML(space)
+    
+    # Define a loss function (simple quadratic)
+    def loss(weights):
+        if len(weights) != 2:
+            raise ValueError("This example requires exactly 2 weights")
+        
+        # Simple loss function: (w1-3)^2 + (w2+2)^2
+        term1 = (weights[0] - HyperMorphicNumber(3, linear_phi, constant_psi)) ** 2
+        term2 = (weights[1] - HyperMorphicNumber(-2, linear_phi, constant_psi)) ** 2
+        
+        return term1 + term2
+    
+    # Initial weights
+    initial_weights = [
+        HyperMorphicNumber(0, linear_phi, constant_psi),
+        HyperMorphicNumber(0, linear_phi, constant_psi)
+    ]
+    
+    # Learning rate
+    learning_rate = HyperMorphicNumber(0.1, linear_phi, constant_psi)
+    
+    # Perform gradient descent
+    print("Gradient Descent Optimization:")
+    print(f"Initial weights: {initial_weights[0]}, {initial_weights[1]}")
+    print(f"Initial loss: {loss(initial_weights)}")
+    print(f"Target weights: 3, -2")
+    
+    optimized_weights = ml.gradient_descent(loss, initial_weights, learning_rate, 20)
+    
+    print(f"Optimized weights: {optimized_weights[0]}, {optimized_weights[1]}")
+    print(f"Final loss: {loss(optimized_weights)}")
+    
+    # Neural network example
+    print("\nNeural Network Example:")
+    
+    # Create input vector
+    x = [
+        HyperMorphicNumber(1, linear_phi, constant_psi),
+        HyperMorphicNumber(2, linear_phi, constant_psi)
+    ]
+    
+    # Create weight matrix and bias for a single layer
+    W = [
+        [HyperMorphicNumber(0.5, linear_phi, constant_psi), HyperMorphicNumber(0.3, linear_phi, constant_psi)],
+        [HyperMorphicNumber(-0.2, linear_phi, constant_psi), HyperMorphicNumber(0.7, linear_phi, constant_psi)]
+    ]
+    
+    b = [
+        HyperMorphicNumber(0.1, linear_phi, constant_psi),
+        HyperMorphicNumber(-0.1, linear_phi, constant_psi)
+    ]
+    
+    # Compute layer output with sigmoid activation
+    output = ml.neural_network_layer(x, W, b, ml.sigmoid)
+    
+    print(f"Input: {x[0]}, {x[1]}")
+    print(f"Weights: {W[0][0]}, {W[0][1]}; {W[1][0]}, {W[1][1]}")
+    print(f"Biases: {b[0]}, {b[1]}")
+    print(f"Output: {output[0]}, {output[1]}")
+    
+    # Example of a multi-layer network
+    print("\nMulti-layer Network Example:")
+    
+    # Create a 2-layer network: 2 -> 2 -> 1
+    layers = [
+        (W, b, ml.sigmoid),  # First layer
+        (
+            [[HyperMorphicNumber(0.6, linear_phi, constant_psi), HyperMorphicNumber(0.4, linear_phi, constant_psi)]],  # Second layer weights
+            [HyperMorphicNumber(0.2, linear_phi, constant_psi)],  # Second layer bias
+            ml.sigmoid  # Second layer activation
+        )
+    ]
+    
+    # Perform forward pass
+    network_output = ml.forward_pass(x, layers)
+    
+    print(f"Network Output: {network_output[0]}")
+
+# examples/cosmology_example.py
+"""
+Example: HyperMorphic cosmology.
+"""
+
+def cosmology_example():
+    """
+    Demonstrate HyperMorphic cosmology.
+    """
+    print("HyperMorphic Calculus: Cosmology Example")
+    print("=" * 50)
+    
+    # Create HyperMorphic space
+    space = HyperMorphicSpace(10, linear_phi, constant_psi)
+    
+    # Create HyperMorphic gravitational constant
+    G = HyperMorphicNumber(6.67e-11, linear_phi, constant_psi)
+    
+    # Create cosmology instance
+    cosmo = HyperMorphicCosmology(space, G)
+    
+    # Create cosmological parameters
+    a0 = HyperMorphicNumber(1, linear_phi, constant_psi)  # Scale factor today
+    H0 = HyperMorphicNumber(70, linear_phi, constant_psi)  # Hubble parameter today
+    omega_m = HyperMorphicNumber(0.3, linear_phi, constant_psi)  # Matter density
+    omega_lambda = HyperMorphicNumber(0.7, linear_phi, constant_psi)  # Dark energy density
+    omega_k = HyperMorphicNumber(0, linear_phi, constant_psi)  # Curvature density
+    
+    # Compute Friedmann equations for current universe
+    print("Friedmann Equations for Current Universe:")
+    
+    # Define energy densities and pressures
+    rho_crit0 = (3 * H0*H0) / (8 * mp.pi * G)
+    rho_m = omega_m * rho_crit0
+    rho_lambda = omega_lambda * rho_crit0
+    rho = rho_m + rho_lambda
+    
+    p_m = HyperMorphicNumber(0, linear_phi, constant_psi)
+    p_lambda = -rho_lambda
+    p = p_m + p_lambda
+    
+    # Define curvature and cosmological constant
+    k = -omega_k * H0*H0
+    Lambda = 3 * omega_lambda * H0*H0
+    
+    # Compute Friedmann equations
+    H_squared, a_dotdot_over_a = cosmo.friedmann_equations(a0, H0, rho, p, k, Lambda)
+    
+    print(f"Critical Density = {rho_crit0}")
+    print(f"Matter Density = {rho_m}")
+    print(f"Dark Energy Density = {rho_lambda}")
+    print(f"Hubble Parameter Squared (H²) = {H_squared}")
+    print(f"Acceleration Parameter (ä/a) = {a_dotdot_over_a}")
+    
+    # Evolution of scale factor
+    print("\nScale Factor Evolution:")
+    
+    t_max = HyperMorphicNumber(1, linear_phi, constant_psi)  # 1 Hubble time
+    dt = HyperMorphicNumber(0.1, linear_phi, constant_psi)
+    
+    times, scale_factors = cosmo.scale_factor_evolution(a0, H0, omega_m, omega_lambda, omega_k, t_max, dt, 10)
+    
+    print(f"{'Time':10} {'Scale Factor':15}")
+    print(f"{'-'*10} {'-'*15}")
+    
+    for i in range(len(times)):
+        print(f"{times[i].value.real:10.2f} {scale_factors[i].value.real:15.6f}")
+    
+    # Dark energy equation of state
+    print("\nDark Energy Equation of State:")
+    
+    w0 = HyperMorphicNumber(-1, linear_phi, constant_psi)
+    wa = HyperMorphicNumber(0.1, linear_phi, constant_psi)
+    
+    for z_val in [0, 0.5, 1, 2, 3]:
+        z = HyperMorphicNumber(z_val, linear_phi, constant_psi)
+        w_z = cosmo.dark_energy_eos(z, w0, wa)
+        print(f"w(z={z_val}) = {w_z}")
+    
+    # Luminosity distance
+    print("\nLuminosity Distance:")
+    
+    for z_val in [0.1, 0.5, 1, 2]:
+        z = HyperMorphicNumber(z_val, linear_phi, constant_psi)
+        d_L = cosmo.luminosity_distance(z, H0, omega_m, omega_lambda, omega_k)
+        print(f"d_L(z={z_val}) = {d_L}")
+
+# examples/visualization_example.py
+"""
+Example: HyperMorphic visualizations.
+"""
+
+def visualization_example():
+    """
+    Demonstrate HyperMorphic visualizations.
+    """
+    print("HyperMorphic Calculus: Visualization Example")
+    print("=" * 50)
+    
+    # Create HyperMorphic space
+    space = HyperMorphicSpace(10, linear_phi, constant_psi)
+    
+    # Create plotter
+    plotter = HyperMorphicPlotter(space)
+    
+    # Define functions to visualize
+    def f1(x):
+        return x.sin()
+    
+    def f2(x, y):
+        x_squared = x ** 2
+        y_squared = y ** 2
+        return (x_squared + y_squared).exp()
+    
+    def f3(z):
+        return z ** 2
+    
+    # 1D visualization
+    print("1D Function Visualization:")
+    print("Plotting sin(x) for x in [-2π, 2π]")
+    
+    # Plot 1D function
+    plotter.plot_function_1d(f1, -2*mp.pi, 2*mp.pi, title="HyperMorphic Sine Function")
+    
+    # 2D visualization
+    print("\n2D Function Visualization:")
+    print("Plotting exp(x² + y²) for x, y in [-2, 2]")
+    
+    # Plot 2D function
+    plotter.plot_function_2d(f2, -2, 2, -2, 2, title="HyperMorphic Exponential Function")
+    
+    # Complex function visualization
+    print("\nComplex Function Visualization:")
+    print("Plotting z² for z in [-2-2i, 2+2i]")
+    
+    # Plot complex function
+    plotter.plot_complex_function(f3, -2, 2, -2, 2, title="HyperMorphic Quadratic Function")
+    
+    # Zero-free comparison
+    print("\nZero-Free Comparison:")
+    print("Comparing x/(x²+a²) with its HyperMorphic version")
+    
+    def std_func(x):
+        return x / (x**2 + 0.1)
+    
+    def hm_func(x):
+        a = HyperMorphicNumber(0.1, linear_phi, constant_psi)
+        denom = x**2 + a
+        return x / denom
+    
+    # Plot zero-free comparison
+    plotter.plot_zero_free_comparison(std_func, hm_func, -2, 2, title="Zero-Free HyperMorphic Function")
+    
+    # Dynamic functions visualization
+    print("\nDynamic Functions Visualization:")
+    print("Plotting Φ and Ψ functions")
+    
+    # Plot dynamic functions
+    plotter.plot_dynamic_functions(linear_phi, quadratic_psi)
+
+# examples/philosophical_example.py
+"""
+Example: HyperMorphic philosophy and metaphysics.
+"""
+
+def philosophical_example():
+    """
+    Demonstrate HyperMorphic philosophy and metaphysics.
+    """
+    print("HyperMorphic Calculus: Philosophical and Metaphysical Examples")
+    print("=" * 50)
+    
+    # Create HyperMorphic space
+    space = HyperMorphicSpace(10, linear_phi, constant_psi)
+    
+    # Create philosophy and metaphysics instances
+    philosophy = HyperMorphicPhilosophy(space)
+    metaphysics = HyperMorphicMetaphysics(space)
+    
+    # HyperMorphic universals
+    print("HyperMorphic Universals:")
+    
+    # Create a HyperMorphic universal (π_ᵩ)
+    def pi_essence(x):
+        pi = HyperMorphicNumber(mp.pi, linear_phi, constant_psi)
+        return x * pi
+    
+    pi_universal = philosophy.hypermorphic_universal("π_ᵩ", pi_essence)
+    
+    print(f"Universal: {pi_universal['name']}")
+    
+    # Create instances (particulars) of the universal
+    circle = philosophy.instantiate(pi_universal, {
+        "radius": HyperMorphicNumber(2, linear_phi, constant_psi)
+    })
+    
+    sphere = philosophy.instantiate(pi_universal, {
+        "radius": HyperMorphicNumber(3, linear_phi, constant_psi)
+    })
+    
+    print(f"Circle radius: {circle['properties']['radius']}")
+    print(f"Sphere radius: {sphere['properties']['radius']}")
+    
+    # HyperMorphic knowledge
+    print("\nHyperMorphic Knowledge:")
+    
+    def justification_func(context):
+        # Example justification function
+        return context.sin() * context.sin() + context.cos() * context.cos()
+    
+    knowledge = philosophy.hypermorphic_knowledge(
+        "The sum of squares of sine and cosine is 1",
+        justification_func,
+        HyperMorphicNumber(1, linear_phi, constant_psi)
+    )
+    
+    print(f"Proposition: {knowledge['proposition']}")
+    print(f"Truth Value: {knowledge['truth_value']}")
+    
+    # HyperMorphic ethics
+    print("\nHyperMorphic Ethics:")
+    
+    # Create weights and utilities
+    weights = [
+        HyperMorphicNumber(0.6, linear_phi, constant_psi),
+        HyperMorphicNumber(0.4, linear_phi, constant_psi)
+    ]
+    
+    utilities = [
+        HyperMorphicNumber(10, linear_phi, constant_psi),
+        HyperMorphicNumber(-5, linear_phi, constant_psi)
+    ]
+    
+    # Compute utility
+    total_utility = philosophy.utility(weights, utilities)
+    
+    print(f"Weights: {weights[0]}, {weights[1]}")
+    print(f"Utilities: {utilities[0]}, {utilities[1]}")
+    print(f"Total Utility: {total_utility}")
+    
+    # Moral relativity
+    contexts = [
+        (linear_phi, constant_psi),
+        (quadratic_phi, linear_psi),
+        (exponential_phi, fibonacci_psi)
+    ]
+    
+    moral_results = philosophy.moral_relativity("Telling a white lie", contexts)
+    
+    print("\nMoral Relativity Results:")
+    for result in moral_results:
+        print(f"Context: Φ={result['phi']}, Ψ={result['psi']}")
+        print(f"Action: {result['action']}")
+        print(f"Moral Value: {result['moral_value']}")
+        print()
+    
+    # HyperMorphic multiverse
+    print("HyperMorphic Multiverse:")
+    
+    # Create universes with different dynamic functions
+    U1 = metaphysics.multiverse_universe(linear_phi, constant_psi, {
+        "name": "Linear Universe",
+        "constants": {
+            "c": 299792458,
+            "G": 6.67e-11,
+            "h": 6.626e-34
+        }
+    })
+    
+    U2 = metaphysics.multiverse_universe(exponential_phi, quadratic_psi, {
+        "name": "Exponential Universe",
+        "constants": {
+            "c": 299792458 * 1.1,
+            "G": 6.67e-11 * 0.9,
+            "h": 6.626e-34 * 1.2
+        }
+    })
+    
+    print(f"Universe 1: {U1['properties']['name']}")
+    print(f"Universe 2: {U2['properties']['name']}")
+    
+    # Compute tunneling probability
+    x = HyperMorphicNumber(1, linear_phi, constant_psi)
+    prob = metaphysics.tunneling_probability(U1, U2, x)
+    
+    print(f"Tunneling Probability: {prob}")
+    
+    # HyperMorphic consciousness
+    print("\nHyperMorphic Consciousness:")
+    
+    # Create a qualia point
+    qualia = metaphysics.qualia_point([
+        HyperMorphicNumber(0.8, linear_phi, constant_psi),  # Redness
+        HyperMorphicNumber(0.5, linear_phi, constant_psi),  # Brightness
+        HyperMorphicNumber(0.3, linear_phi, constant_psi)   # Warmth
+    ])
+    
+    print(f"Qualia Point: {qualia[0]}, {qualia[1]}, {qualia[2]}")
+    
+    # Compute consciousness trajectory
+    trajectory = metaphysics.consciousness_trajectory(qualia, 5)
+    
+    print("Consciousness Trajectory:")
+    for i, state in enumerate(trajectory):
+        print(f"t={i}: {state[0]}, {state[1]}, {state[2]}")
+    
+    # HyperMorphic B-theory of time
+    print("\nHyperMorphic B-theory of Time:")
+    
+    # Create a spacetime
+    spacetime = []
+    for t in range(5):
+        # Create a spatial slice at time t
+        space_slice = []
+        for x in range(3):
+            space_slice.append(HyperMorphicNumber(x + t/10, linear_phi, constant_psi))
+        spacetime.append(space_slice)
+    
+    # Extract time slice
+    slice_t = 2
+    spatial_slice = metaphysics.b_theory_slice(spacetime, slice_t)
+    
+    print(f"Time Slice t={slice_t}: {spatial_slice[0]}, {spatial_slice[1]}, {spatial_slice[2]}")
+    
+    # HyperMorphic free will
+    print("\nHyperMorphic Free Will:")
+    
+    # Define an agent
+    def decision_function(context):
+        return context.sin()
+    
+    agent = {
+        "name": "John",
+        "decision_function": decision_function
+    }
+    
+    # Define options
+    options = ["Coffee", "Tea", "Water"]
+    
+    # Make a decision in a context
+    context = HyperMorphicNumber(0.7, linear_phi, constant_psi)
+    choice = metaphysics.free_will_decision(agent, options, context)
+    
+    print(f"Agent: {agent['name']}")
+    print(f"Context: {context}")
+    print(f"Options: {', '.join(options)}")
+    print(f"Decision: {choice}")
+
+def main():
+    """
+    Run all examples.
+    """
+    basic_operations_example()
+    print("\n\n")
+    
+    calculus_examples()
+    print("\n\n")
+    
+    quantum_mechanics_example()
+    print("\n\n")
+    
+    fluid_dynamics_example()
+    print("\n\n")
+    
+    finance_example()
+    print("\n\n")
+    
+    machine_learning_example()
+    print("\n\n")
+    
+    cosmology_example()
+    print("\n\n")
+    
+    visualization_example()
+    print("\n\n")
+    
+    philosophical_example()
+
+if __name__ == "__main__":
+    main()
